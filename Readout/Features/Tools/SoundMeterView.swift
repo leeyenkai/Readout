@@ -44,6 +44,11 @@ struct SoundMeterView: View {
         .scrollIndicators(.hidden)
         .navigationTitle("Sound meter")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                RecordButton(readings: [.soundLevel])
+            }
+        }
         .onAppear { hub.activate(.soundLevel) }
         .onDisappear { hub.deactivate(.soundLevel) }
     }

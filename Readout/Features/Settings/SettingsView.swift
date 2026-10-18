@@ -90,7 +90,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Feedback")
                 } footer: {
-                    Text("A tap when the level reaches 0° and when the compass crosses a cardinal point.")
+                    Text("A tap when the level reaches 0°, when the compass crosses a cardinal point, and as a recording starts and stops.")
                 }
 
                 if !settings.hiddenReadings.isEmpty {
@@ -114,7 +114,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Privacy")
                 } footer: {
-                    Text("Everything is measured and kept on this iPhone. Readout has no accounts, no analytics and no network code at all. Microphone audio and camera frames are read in memory to work out a level and are never saved.")
+                    Text("Everything is measured and kept on this iPhone. Readout has no accounts, no analytics and no network code at all. Microphone audio and camera frames are read in memory to work out a level and are never saved. Recordings stay here until you export them, and deleting Readout deletes them with it.")
                 }
 
                 Section {

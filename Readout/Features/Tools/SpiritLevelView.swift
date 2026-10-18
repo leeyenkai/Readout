@@ -42,6 +42,11 @@ struct SpiritLevelView: View {
         .padding(.bottom, 16)
         .navigationTitle("Spirit level")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                RecordButton(readings: [.orientation])
+            }
+        }
         .onAppear { hub.activate(.orientation, rate: .display) }
         .onDisappear { hub.deactivate(.orientation, rate: .display) }
         .sensoryFeedback(trigger: isLevel) { _, level in

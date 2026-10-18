@@ -4,6 +4,8 @@ import Foundation
 /// the detail chart want display rate (R-65).
 enum ActivationRate: Int, Comparable, Sendable {
     case standard = 10
+    /// The fastest recording rate, asked for only by a High recording (R-39).
+    case fast = 50
     case display = 60
 
     static func < (lhs: ActivationRate, rhs: ActivationRate) -> Bool {

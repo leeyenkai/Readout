@@ -12,15 +12,22 @@ final class MockSensorSource: SensorProvider {
 
     private var active: Set<ReadingID> = []
     private var timer: Timer?
+    private var interval: TimeInterval = 0
     private var phase: Double = 0
+    private var lastSlowTick = Date.distantPast
     private let startedAt = Date.now
 
     func isSupported(_ reading: ReadingID) -> Bool { true }
 
     func start(_ reading: ReadingID, rate: ActivationRate) {
         active.insert(reading)
-        guard timer == nil else { return }
-        let timer = Timer(timeInterval: 1.0 / 20, repeats: true) { [weak self] _ in
+        // A recording asking for 50 Hz gets 50 Hz of synthetic data, so the rates can be
+        // told apart in the Simulator (R-39, R-71).
+        let wanted = min(rate.interval, 1.0 / 20)
+        guard timer == nil || wanted < interval else { return }
+        timer?.invalidate()
+        interval = wanted
+        let timer = Timer(timeInterval: wanted, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.tick()
             }
@@ -34,11 +41,18 @@ final class MockSensorSource: SensorProvider {
         guard active.isEmpty else { return }
         timer?.invalidate()
         timer = nil
+        interval = 0
     }
 
     private func tick() {
-        phase += 1.0 / 20
+        phase += interval
+        // Core Location, the altimeter and the pedometer report about once a second however
+        // fast an app asks; the mock does the same, so a recording made in the Simulator has
+        // the shape one made on a phone would (R-39, R-71).
+        let isSlowDue = Date.now.timeIntervalSince(lastSlowTick) >= 1
+        if isSlowDue { lastSlowTick = .now }
         for reading in active {
+            guard ReadingCatalog.descriptor(reading).recordingCadence != .free || isSlowDue else { continue }
             output?(reading, sample(for: reading))
         }
     }

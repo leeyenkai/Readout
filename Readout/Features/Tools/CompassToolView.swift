@@ -41,6 +41,11 @@ struct CompassToolView: View {
         .scrollIndicators(.hidden)
         .navigationTitle("Compass")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                RecordButton(readings: [.heading])
+            }
+        }
         .onAppear {
             hub.activate(.heading, rate: .display)
             hub.activate(.coordinates)

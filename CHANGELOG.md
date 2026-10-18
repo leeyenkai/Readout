@@ -8,7 +8,55 @@ requirement IDs in [`docs/SPEC.md`](docs/SPEC.md).
 
 ## [Unreleased]
 
-Nothing yet. Next milestone is **v0.2.0 — Recording & export** (`docs/SPEC.md` §8, §12).
+Nothing yet. Next milestone is **v0.3.0 — Calibration & accessibility** (`docs/SPEC.md` §12).
+
+## [0.2.0] — 2026-10-18
+
+Recording and CSV export: §8 of the spec in full. Built and run in the Simulator against the
+synthetic source; the sample rates still need checking against real sensors on a phone.
+
+### Added
+
+- **Recording sessions** — a recording service that samples the chosen readings through
+  `SensorHub` while Readout is in the foreground, writing each reading to its own CSV file as
+  it goes. Samples are taken from the hub's own tap rather than the chart history, which
+  decimates to 10 Hz (R-6, R-37, R-65).
+- **Sample rates** — Low (1 Hz), Medium (10 Hz) and High (50 Hz). High drives the four Core
+  Motion readings; the microphone, camera and device readings are capped at the chosen rate
+  but not driven; location, air pressure and the pedometer are logged as their frameworks
+  deliver them (R-39).
+- **New Recording** — a checklist of every reading this iPhone has, with the sample rate and
+  its consequences spelled out, from the Recordings tab or from a Record button. A reading
+  that needs a permission asks for it here, and one that is refused is named rather than
+  silently dropped (R-37, R-38).
+- **Recording bar** — elapsed time, sample count and Stop, floating above the tab bar in
+  whichever tab is open, with the screen kept awake for as long as the session runs (R-40).
+- **Foreground only** — leaving Readout stops the session and saves it with an "interrupted"
+  note, as Q-3 decided (R-41).
+- **Sessions** — SwiftData holds the metadata and the samples stay in CSV files on disk, one
+  folder per session under Application Support. The tab lists sessions newest first with
+  their duration, reading count and size (R-42, R-57, R-61).
+- **Session view** — a chart of the whole recording read back from its CSV, min/max/average
+  per channel, and Rename, Delete and Export (R-43).
+- **CSV export** — one file per reading, shared together through the share sheet, with an
+  ISO 8601 timestamp carrying milliseconds and the phone's time-zone offset, elapsed seconds,
+  and one column per value named after its unit, exactly as SPEC §8.4 sets out. Values are
+  written in the unit they are stored in, so a file means the same thing whatever the
+  exporting phone was set to show (R-44, R-45).
+- **Record buttons** — on every reading detail view and on all four tools, each opening New
+  Recording with that reading already ticked (R-29, R-36).
+- **Recording haptics** — a tap as a session starts and another as it stops, behind the
+  existing Settings switch (R-51).
+- **Unit tests** — 39 more, over the CSV format against the spec's own example, column naming
+  for all 19 readings, the sample-rate gate at each rate and cadence, session and file naming,
+  track statistics, and reading a session's CSV back for its chart.
+
+### Changed
+
+- `ActivationRate` gained a 50 Hz case, asked for only by a High recording (R-39).
+- The Simulator's synthetic source now follows the rate it is asked for, and delivers the
+  location, altimeter and pedometer readings about once a second as their frameworks do, so a
+  recording made in the Simulator has the shape one made on a phone would (R-71).
 
 ## [0.1.0] — 2026-10-18
 

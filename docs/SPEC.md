@@ -45,7 +45,7 @@ foreground recording with CSV export.
 | R-3 | Light from a camera-based light meter; device thermal state as the only heat-related reading | Done |
 | R-4 | A detail view per reading: live chart, min/max/average, explainer and everyday comparisons | Done |
 | R-5 | Instrument tools: spirit level, compass, sound meter, light meter | Done |
-| R-6 | Foreground recording of chosen sensors, exported as CSV through the share sheet | Planned (v0.2) |
+| R-6 | Foreground recording of chosen sensors, exported as CSV through the share sheet | Done (v0.2.0) |
 
 ### 2.2 Out of scope for v1
 
@@ -166,7 +166,7 @@ stats, and a short explainer with everyday comparisons.
 | R-26 | Stats since the view opened: minimum, maximum, average, with a Reset button. | Done |
 | R-27 | Comparison scale: the current value placed on a bar of everyday references. | Done |
 | R-28 | Explainer card: what the sensor is, what it measures, how precise it is, and one "Try this" idea. | Done |
-| R-29 | Record button that starts a recording with this reading pre-selected. | Planned (v0.2) |
+| R-29 | Record button that starts a recording with this reading pre-selected. | Done |
 | R-30 | Acceleration shows motion with gravity removed by default, with a toggle to include gravity. | Done |
 | R-31 | Long-pressing the live value copies it with its unit. | Done |
 
@@ -192,43 +192,45 @@ The Tools tab holds four full-screen instruments, each built for one job and usa
 | R-33 | Compass | Rotating dial with heading, cardinal letters, coordinates and altitude below | Core Location heading and location | True or magnetic north toggle; lock a bearing to show drift from it; haptic tick at N, E, S, W; calibration prompt when accuracy is poor | Done |
 | R-34 | Sound meter | Current dB, peak and average, live history chart, comparison scale | Microphone level metering | Fast or slow response; Reset; warning colour at 85 dB and above; audio is never recorded, only levels | Done |
 | R-35 | Light meter | Approximate lux, live camera preview with a metering spot, comparison scale | Camera exposure data | Tap the preview to meter a spot; switch front or rear camera; Hold to freeze the reading | Done |
-| R-36 | Each tool has the same Record button as the detail view, so a level or sound session can be logged without leaving the tool. | | | | Planned (v0.2) |
+| R-36 | Each tool has the same Record button as the detail view, so a level or sound session can be logged without leaving the tool. | | | | Done |
 
 ---
 
 ## 8. Recording and export
 
 Recording logs the readings a user picks while the app is open, saves each session on the
-device, and exports it as CSV through the share sheet. **All of §8 is planned for v0.2.**
+device, and exports it as CSV through the share sheet. **All of §8 shipped in v0.2.0**, built
+and run in the Simulator against the synthetic source; the rates still need checking against
+real sensors (R-71).
 
 ### 8.1 Starting a recording
 
 | ID | Requirement | Status |
 | --- | --- | --- |
-| R-37 | From the Recordings tab (New Recording) or the Record button on any detail view or tool. | Planned |
-| R-38 | Pick readings from a checklist; readings that need a permission ask for it here. | Planned |
-| R-39 | Pick a sample rate: Low (1 Hz), Medium (10 Hz) or High (50 Hz). High applies to motion readings; location, pressure and the pedometer record at their own native rate. | Planned |
-| R-40 | While recording, the screen stays awake and a compact recording bar shows elapsed time, sample count and Stop. | Planned |
+| R-37 | From the Recordings tab (New Recording) or the Record button on any detail view or tool. | Done |
+| R-38 | Pick readings from a checklist; readings that need a permission ask for it here. | Done — a reading whose permission is refused is named and left out, the rest still record |
+| R-39 | Pick a sample rate: Low (1 Hz), Medium (10 Hz) or High (50 Hz). High applies to motion readings; location, pressure and the pedometer record at their own native rate. | Done — sound, light and the device readings are capped at the chosen rate but cannot be driven faster; 50 Hz from Core Motion needs a phone to confirm |
+| R-40 | While recording, the screen stays awake and a compact recording bar shows elapsed time, sample count and Stop. | Done — the bar is verified; the idle timer cannot be observed in the Simulator |
 
 ### 8.2 Leaving the app
 
 | ID | Requirement | Status |
 | --- | --- | --- |
-| R-41 | Recording is foreground-only in v1. If the user leaves the app, the session stops and is saved with an "interrupted" note. | Planned |
+| R-41 | Recording is foreground-only in v1. If the user leaves the app, the session stops and is saved with an "interrupted" note. | Done |
 
 ### 8.3 Sessions
 
 | ID | Requirement | Status |
 | --- | --- | --- |
-| R-42 | The Recordings tab lists sessions newest first: auto-generated name (date, time, readings), duration and size. | Planned |
-| R-43 | A session view shows a chart and min/max/average per reading, with Rename, Delete and Export. | Planned |
+| R-42 | The Recordings tab lists sessions newest first: auto-generated name (date, time, readings), duration and size. | Done |
+| R-43 | A session view shows a chart and min/max/average per reading, with Rename, Delete and Export. | Done — the chart is read back from the session's own CSV |
 
 ### 8.4 CSV format
 
 | ID | Requirement | Status |
 | --- | --- | --- |
-| R-44 | One CSV file per reading, all shared together through the share sheet (Files, AirDrop, Mail, and so on). | Planned |
-| R-45 | Columns: ISO 8601 timestamp with milliseconds and time-zone offset, elapsed seconds, then one column per value with its unit in the header. | Planned |
+| R-44 | One CSV file per reading, all shared together through the share sheet (Files, AirDrop, Mail, and so on). | Done |
+| R-45 | Columns: ISO 8601 timestamp with milliseconds and time-zone offset, elapsed seconds, then one column per value with its unit in the header. | Done — values are written in the unit they are stored in, so a file reads the same whatever the phone shows; a discrete reading adds a `state` column |
 
 ```csv
 timestamp,elapsed_s,accel_x_g,accel_y_g,accel_z_g
@@ -251,7 +253,7 @@ and system components wherever they exist.
 | R-48 | Icons | One SF Symbol per reading, with symbol effects where they add meaning (for example, the sound tile's symbol reacting to level). | Done |
 | R-49 | Colour | System colours with a single accent; fixed axis colours across the app (x red, y green, z blue); full dark mode and Increase Contrast support. | Done |
 | R-50 | Motion | Gentle, physical animation (bubble, compass dial); all of it reduced or removed under Reduce Motion. | Done |
-| R-51 | Haptics | Level reaching 0°, compass cardinal points, recording start and stop; one switch in Settings turns them off. | Partial — recording haptics with R-6 |
+| R-51 | Haptics | Level reaching 0°, compass cardinal points, recording start and stop; one switch in Settings turns them off. | Done — recording haptics added in v0.2.0; not feelable in the Simulator |
 | R-52 | Accessibility | Dynamic Type on every screen; VoiceOver reads each value with its unit on request rather than announcing every change; charts expose audio graphs; tools work one-handed. | Partial — Dynamic Type, VoiceOver labels and Reduce Motion done; chart audio graphs planned |
 | R-53 | Language | English at launch; units and number formats follow the phone's region. | Done |
 
@@ -274,7 +276,7 @@ network requests, and the App Store privacy label is "Data Not Collected".
 | R-54 | Permissions are asked only when needed, each preceded by a one-line card explaining why. | Done |
 | R-55 | Tiles that lack permission show "Tap to allow"; after a denial they link to the app's page in Settings. | Done |
 | R-56 | Microphone audio and camera frames are processed in memory and never saved; only the derived numbers are kept. | Done |
-| R-57 | Recordings stay on the device until the user exports them; deleting the app deletes them. | Planned (with R-6) |
+| R-57 | Recordings stay on the device until the user exports them; deleting the app deletes them. | Done — sessions live in Application Support, and deleting one removes its CSV files with it |
 | R-58 | iOS shows its orange (microphone) and green (camera) indicators while those sensors are in use; the app never hides or works around them. | Done |
 | R-59 | The app makes no network requests; no analytics, no crash reporting SDKs, no remote config. | Done |
 
@@ -290,7 +292,7 @@ dependencies.
 | ID | Requirement | Status |
 | --- | --- | --- |
 | R-60 | SwiftUI with the Observation framework; Swift Charts for all charts. | Done |
-| R-61 | Core Motion, Core Location and AVFoundation for sensors; SwiftData for session metadata, with samples written to CSV files on disk. | Partial — sensors done; SwiftData arrives with R-6 |
+| R-61 | Core Motion, Core Location and AVFoundation for sensors; SwiftData for session metadata, with samples written to CSV files on disk. | Done |
 | R-62 | iOS 26 minimum, so Liquid Glass comes from the system rather than being imitated; this covers every iPhone that runs iOS 26. | Done |
 
 Built with Xcode 27 / Swift 6.4 against the iOS 27 SDK; deployment target iOS 26.0.
@@ -301,7 +303,7 @@ Built with Xcode 27 / Swift 6.4 against the iOS 27 SDK; deployment target iOS 26
 | --- | --- | --- |
 | R-63 | One shared sensor service owns a single Core Motion manager, as Apple recommends, and hands readings to views. | Done |
 | R-64 | A sensor starts when a view showing it appears and stops when it disappears or the app goes to the background. | Done |
-| R-65 | Home tiles refresh at about 10 Hz; the level, compass and charts at display rate; recordings sample at the chosen rate, independent of the screen. | Done (recording rate with R-6) |
+| R-65 | Home tiles refresh at about 10 Hz; the level, compass and charts at display rate; recordings sample at the chosen rate, independent of the screen. | Done — recordings take their samples from the hub's tap, so a chart running at display rate neither slows nor speeds a session |
 
 ### 11.3 Per-sensor notes
 
@@ -327,8 +329,8 @@ Built with Xcode 27 / Swift 6.4 against the iOS 27 SDK; deployment target iOS 26
 | Milestone | Contents | State |
 | --- | --- | --- |
 | **v0.1.0 — Readings & tools** | App shell and three tabs; all 19 readings with live providers; tile grid with all four states; detail views with charts, stats, comparisons and explainers; all four instrument tools; Settings; permission flow; mock source for Simulator and previews; 40 unit tests | Shipped — built and run in the Simulator; **not yet verified on physical hardware** |
-| **v0.2.0 — Recording & export** | §8 in full: recording sessions, sample rates, recording bar, session list and detail, SwiftData metadata, CSV writing and share-sheet export, Record buttons wired up (R-6, R-29, R-36–45, R-57) | Next |
-| **v0.3.0 — Calibration & accessibility** | Per-model sound and light calibration tables (R-10, R-66), chart audio graphs (R-52), drag-to-reorder tiles (R-22) | Planned |
+| **v0.2.0 — Recording & export** | §8 in full: recording sessions, sample rates, recording bar, session list and detail, SwiftData metadata, CSV writing and share-sheet export, Record buttons wired up (R-6, R-29, R-36–45, R-51, R-57, R-61) | Shipped — recorded, listed, charted and exported in the Simulator against the synthetic source; **not yet verified on physical hardware** |
+| **v0.3.0 — Calibration & accessibility** | Per-model sound and light calibration tables (R-10, R-66), chart audio graphs (R-52), drag-to-reorder tiles (R-22) | Next |
 | **v1.0 — App Store** | App icon, screenshots, App Store privacy label ("Data Not Collected"), on-device testing of every reading, TestFlight pass | Planned |
 
 ---
@@ -343,7 +345,7 @@ provisional choice v0.1.0 ships with; none of them is settled.
 | Q-1 | Home grid default: show all 19 readings, or a starter set of about 8 with the rest under Edit? | All 19, grouped |
 | Q-2 | Compass and level tiles: open the detail view or jump straight to the tool? | Detail view; tools live in their own tab |
 | Q-3 | Leaving the app mid-recording: stop and save, or pause and resume on return? | Stop and save with an "interrupted" note |
-| Q-4 | Maximum recording length and a storage cap per session? | Undecided |
+| Q-4 | Maximum recording length and a storage cap per session? | Undecided — v0.2.0 ships no cap; a three-axis reading at 50 Hz writes about 200 kB a minute |
 | Q-5 | Sound meter calibration: fixed per-model offsets, user calibration against a reference meter, or both? | User offset ships in v0.1.0; per-model table in v0.3.0 |
 | Q-6 | Recordings: device-only, or iCloud sync later? | Device-only |
 | Q-7 | Temperature in a later version: nearby weather (labelled), Bluetooth thermometers, or neither? | Neither in v1 |

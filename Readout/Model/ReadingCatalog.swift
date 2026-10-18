@@ -33,7 +33,10 @@ enum ReadingCatalog {
                     .init(3.5, "Roller coaster"),
                 ],
                 span: 0...4
-            )
+            ),
+            recordingCadence: .driven,
+            // SPEC §8.4 names acceleration's columns accel_x_g.
+            csvPrefix: "accel"
         ),
 
         ReadingDescriptor(
@@ -61,7 +64,8 @@ enum ReadingCatalog {
                     .init(900, "A quick flick"),
                 ],
                 span: 0...1_000
-            )
+            ),
+            recordingCadence: .driven
         ),
 
         ReadingDescriptor(
@@ -88,7 +92,8 @@ enum ReadingCatalog {
                     .init(90, "Upright"),
                 ],
                 span: -90...90
-            )
+            ),
+            recordingCadence: .driven
         ),
 
         ReadingDescriptor(
@@ -115,7 +120,8 @@ enum ReadingCatalog {
                     .init(500, "Fridge magnet, close"),
                 ],
                 span: 0...600
-            )
+            ),
+            recordingCadence: .driven
         ),
 
         ReadingDescriptor(
@@ -140,7 +146,8 @@ enum ReadingCatalog {
                     .init(270, "West"),
                 ],
                 span: 0...360
-            )
+            ),
+            recordingCadence: .free
         ),
 
         // MARK: Environment
@@ -167,7 +174,8 @@ enum ReadingCatalog {
                     .init(1_013, "Sea level average"),
                 ],
                 span: 700...1_060
-            )
+            ),
+            recordingCadence: .free
         ),
 
         ReadingDescriptor(
@@ -191,7 +199,8 @@ enum ReadingCatalog {
                     .init(30, "Ten storeys"),
                 ],
                 span: -30...30
-            )
+            ),
+            recordingCadence: .free
         ),
 
         ReadingDescriptor(
@@ -270,7 +279,8 @@ enum ReadingCatalog {
                 what: "Where you are, as latitude and longitude. The phone works it out from GPS and the other satellite systems, helped along by known Wi-Fi networks and mobile masts.",
                 precision: "Typically within 5 metres outdoors with a clear view of the sky, and much worse indoors or between tall buildings. The Accuracy reading tells you how much to trust it.",
                 tryThis: "Note your coordinates indoors, then step outside and watch the accuracy figure tighten up."
-            )
+            ),
+            recordingCadence: .free
         ),
 
         ReadingDescriptor(
@@ -295,7 +305,8 @@ enum ReadingCatalog {
                     .init(2_000, "Mountain"),
                 ],
                 span: -100...3_000
-            )
+            ),
+            recordingCadence: .free
         ),
 
         ReadingDescriptor(
@@ -320,7 +331,8 @@ enum ReadingCatalog {
                     .init(22, "Metro train"),
                 ],
                 span: 0...30
-            )
+            ),
+            recordingCadence: .free
         ),
 
         ReadingDescriptor(
@@ -345,7 +357,8 @@ enum ReadingCatalog {
                     .init(270, "West"),
                 ],
                 span: 0...360
-            )
+            ),
+            recordingCadence: .free
         ),
 
         ReadingDescriptor(
@@ -372,7 +385,8 @@ enum ReadingCatalog {
                     .init(65, "Indoors"),
                 ],
                 span: 0...100
-            )
+            ),
+            recordingCadence: .free
         ),
 
         // MARK: Device & activity
@@ -402,7 +416,8 @@ enum ReadingCatalog {
                     .init(10_000, "The usual target"),
                 ],
                 span: 0...15_000
-            )
+            ),
+            recordingCadence: .free
         ),
 
         ReadingDescriptor(
@@ -430,7 +445,8 @@ enum ReadingCatalog {
                     .init(180, "Running fast"),
                 ],
                 span: 0...200
-            )
+            ),
+            recordingCadence: .free
         ),
 
         ReadingDescriptor(

@@ -12,6 +12,11 @@ final class SensorHub {
     /// The latest value per reading, at provider rate.
     private(set) var samples: [ReadingID: SensorSample] = [:]
 
+    /// Called with every sample a provider delivers, before the history buffer decimates it
+    /// to 10 Hz. Set by `RecordingService`, which needs the full rate to record at 50 Hz
+    /// (R-39, R-65).
+    var sampleObserver: ((ReadingID, SensorSample) -> Void)?
+
     let permissions = PermissionCoordinator()
     let motion = MotionProvider()
     let location = LocationProvider()
@@ -203,6 +208,7 @@ final class SensorHub {
 
     private func receive(_ reading: ReadingID, _ sample: SensorSample) {
         samples[reading] = sample
+        sampleObserver?(reading, sample)
         let appended = buffers[reading, default: SampleBuffer()].append(sample)
         guard appended, let value = ReadingCatalog.descriptor(reading).summaryValue(sample) else { return }
         var trail = trails[reading] ?? []

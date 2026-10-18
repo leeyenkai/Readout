@@ -47,6 +47,11 @@ struct LightMeterView: View {
         .scrollIndicators(.hidden)
         .navigationTitle("Light meter")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                RecordButton(readings: [.light])
+            }
+        }
         .onAppear { hub.activate(.light) }
         .onDisappear {
             hub.deactivate(.light)

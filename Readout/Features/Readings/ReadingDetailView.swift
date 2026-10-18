@@ -37,6 +37,11 @@ struct ReadingDetailView: View {
         .scrollIndicators(.hidden)
         .navigationTitle(descriptor.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                RecordButton(readings: [reading])
+            }
+        }
         .onAppear { activateIfAllowed() }
         .onDisappear { deactivate() }
     }

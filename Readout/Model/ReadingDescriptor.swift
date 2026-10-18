@@ -66,6 +66,19 @@ enum TileSummary: Sendable {
     case coordinates
 }
 
+/// How a recording's chosen rate applies to a reading (R-39).
+enum RecordingCadence: Sendable {
+    /// The provider follows the requested `ActivationRate`, so High really means 50 Hz:
+    /// the four Core Motion readings.
+    case driven
+    /// The provider has a rate of its own — the microphone's level meter, the camera, the
+    /// device readings — but a recording still keeps no more than the chosen rate asks for.
+    case capped
+    /// The framework decides when a value arrives and every one is kept: location, air
+    /// pressure and the pedometer, which R-39 exempts from the chosen rate.
+    case free
+}
+
 /// One channel of a reading, for example the x axis of acceleration.
 struct ReadingChannel: Sendable, Hashable, Identifiable {
     let name: String
@@ -109,6 +122,12 @@ struct ReadingDescriptor: Sendable, Identifiable {
     let comparisons: ComparisonScale?
     /// Set when the figure is an estimate rather than a sensor reading (R-10, R-66).
     let estimateNote: String?
+    /// Whether a recording can drive this reading faster than its default rate (R-39).
+    let recordingCadence: RecordingCadence
+    /// The stem of this reading's CSV column names and file name. Defaults to the
+    /// identifier in snake case; set where a shorter name reads better, as SPEC §8.4's
+    /// `accel_x_g` does.
+    let csvPrefix: String
 
     init(
         id: ReadingID,
@@ -123,7 +142,9 @@ struct ReadingDescriptor: Sendable, Identifiable {
         tile: TileSummary = .channel(0),
         explainer: Explainer,
         comparisons: ComparisonScale? = nil,
-        estimateNote: String? = nil
+        estimateNote: String? = nil,
+        recordingCadence: RecordingCadence = .capped,
+        csvPrefix: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -138,6 +159,25 @@ struct ReadingDescriptor: Sendable, Identifiable {
         self.explainer = explainer
         self.comparisons = comparisons
         self.estimateNote = estimateNote
+        self.recordingCadence = recordingCadence
+        self.csvPrefix = csvPrefix ?? Self.snakeCased(id.rawValue)
+    }
+
+    /// `relativeAltitude` becomes `relative_altitude` and a channel called "X" becomes `x`,
+    /// so a column name reads the way a CSV reader expects (R-45).
+    static func snakeCased(_ text: String) -> String {
+        var result = ""
+        for (index, character) in text.enumerated() {
+            if character.isUppercase {
+                if index > 0 { result.append("_") }
+                result.append(character.lowercased())
+            } else if character.isLetter || character.isNumber {
+                result.append(character)
+            } else {
+                result.append("_")
+            }
+        }
+        return result
     }
 
     var isMultiAxis: Bool { channels.count > 1 && channels.allSatisfy { $0.axis != nil } }

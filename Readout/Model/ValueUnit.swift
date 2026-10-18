@@ -98,6 +98,30 @@ enum ValueUnit: Sendable, Equatable, Hashable {
     /// A discrete reading with no numeric unit.
     case none
 
+    /// The unit as a CSV column header writes it: the stored unit, in ASCII, because a
+    /// spreadsheet should not have to cope with "°/s" or "µT" in a column name (R-45).
+    ///
+    /// CSV always carries the stored metric value, so this never follows the user's display
+    /// preferences — an exported file means the same thing whoever exported it.
+    var csvSymbol: String {
+        switch self {
+        case .acceleration: "g"
+        case .angularVelocity: "deg_s"
+        case .angle: "deg"
+        case .magneticFlux: "uT"
+        case .pressure: "hPa"
+        case .altitude, .length, .distance: "m"
+        case .soundPressure: "dB"
+        case .illuminance: "lux"
+        case .speed: "m_s"
+        case .count(let symbol): symbol.lowercased()
+        case .cadence: "steps_min"
+        case .pace: "s_km"
+        case .percentage: "percent"
+        case .none: ""
+        }
+    }
+
     /// Conversion and formatting rules for the current preferences.
     func presentation(_ units: DisplayUnits) -> UnitPresentation {
         switch self {
