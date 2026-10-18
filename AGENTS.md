@@ -1,0 +1,129 @@
+# AGENTS.md
+
+Working agreement for AI agents and humans in this repo. Read this before changing anything.
+`CLAUDE.md` points here; this file is the single source of working instructions.
+
+## 1. What this project is
+
+**Readout** — a free, native iPhone app that shows the phone's built-in sensors as clear,
+live readings, plus four instruments (spirit level, compass, sound meter, light meter).
+Hobby project: no ads, no in-app purchases, no accounts, no network calls.
+
+The spec is [`docs/SPEC.md`](docs/SPEC.md). It is the source of truth for scope and carries
+stable requirement IDs (`R-nn`). Read the relevant section before implementing a feature.
+
+## 2. Toolchain
+
+| | |
+| --- | --- |
+| Language | Swift 6.4, Swift 6 language mode |
+| UI | SwiftUI + Observation (`@Observable`), Swift Charts |
+| Min OS | iOS 26.0 (`IPHONEOS_DEPLOYMENT_TARGET`) |
+| Built with | Xcode 27, iOS 27 SDK |
+| Dependencies | **none** — no SPM packages, no CocoaPods, no Carthage |
+
+Adding a third-party dependency needs a decision recorded in `docs/SPEC.md` first.
+
+## 3. Build and test
+
+Build for the Simulator:
+
+```bash
+xcodebuild -project Readout.xcodeproj -scheme Readout -destination 'generic/platform=iOS Simulator' build
+```
+
+Run the unit tests, naming a simulator from `xcrun simctl list devices available`:
+
+```bash
+xcodebuild -project Readout.xcodeproj -scheme Readout -destination 'platform=iOS Simulator,name=Readout iPhone' test
+```
+
+To see the app, use the iOS Simulator tooling rather than describing the UI: attach the live
+panel first, then build, install and launch, then take screenshots to verify.
+
+**The project uses file-system-synchronized groups.** New Swift files inside `Readout/` or
+`ReadoutTests/` are picked up automatically — never hand-edit `project.pbxproj` to add a file.
+
+## 4. Layout
+
+```
+Readout/
+├── docs/SPEC.md            Specification (requirement IDs R-nn)
+├── Readout/                App target
+│   ├── App/                Entry point, root view, app-wide environment
+│   ├── Model/              Reading catalog, values, units, comparison scales
+│   ├── Sensors/            Sensor hub + one provider per framework
+│   ├── Features/
+│   │   ├── Readings/       Tile grid, tiles, detail view, chart, stats
+│   │   ├── Tools/          Spirit level, compass, sound meter, light meter
+│   │   ├── Recordings/     Recording and CSV export (v0.2)
+│   │   └── Settings/       Settings sheet and stored preferences
+│   ├── Support/            Haptics and other small helpers
+│   └── Assets.xcassets/
+└── ReadoutTests/           Unit tests for pure logic
+```
+
+## 5. Architecture rules
+
+1. **One hub, one manager.** `SensorHub` is the only owner of `CMMotionManager`,
+   `CLLocationManager`, the audio session and the capture session (R-63). Views never create
+   a manager. Add a new sensor by adding a provider, not by reaching for a framework in a view.
+2. **Reference-counted lifecycle.** Views call `hub.activate(_:)` in `.onAppear` and
+   `hub.deactivate(_:)` in `.onDisappear`. A provider starts on the first activation and stops
+   on the last deactivation or on backgrounding (R-64). Never leave a sensor running.
+3. **Catalog-driven UI.** A reading's name, symbol, group, unit, permission, explainer and
+   comparison scale live in `ReadingCatalog`. Adding a reading should mean adding a
+   `ReadingDescriptor` and a provider — not a new view.
+4. **`@MainActor` for anything observable.** Framework callbacks arrive off the main actor;
+   hop with `MainActor.assumeIsolated` in a `nonisolated` delegate method, or `Task { @MainActor in }`.
+   Keep `@Observable` state main-actor-isolated.
+5. **Pure logic stays pure.** Unit conversion, dB/lux maths, statistics and formatting go in
+   `Model/` as free functions or value types, so `ReadoutTests` can cover them without hardware.
+6. **Availability before display.** Check hardware and permission state and hide or gate the
+   reading; never show a dead tile (R-7, R-18–21).
+
+## 6. Privacy — non-negotiable
+
+- **No network.** No URLSession, no analytics, no crash reporting, no remote config. If a change
+  would make a network request, stop and raise it instead (R-59).
+- Microphone samples and camera frames are read in memory for levels only and never written to
+  disk, never displayed as saved media (R-56).
+- Never suppress or work around the system microphone/camera indicators (R-58).
+- No new `Info.plist` usage key without a matching line in `docs/SPEC.md` §10.
+
+## 7. Conventions
+
+- Swift API Design Guidelines. Types `UpperCamelCase`, members `lowerCamelCase`, no `m_` or `_`
+  prefixes for stored properties.
+- One primary type per file, named after the file.
+- British English in user-facing copy and comments ("metre", "colour", "calibrate"), matching
+  the spec. Exception: Apple API names and `Measurement` unit symbols stay as Apple spells them.
+- Comments explain *why*, not *what*. Match the density of the surrounding file.
+- Every user-facing string is a plain literal for now; there is no localisation layer yet
+  (R-53 — English at launch).
+- Numbers shown to the user go through `Model/ValueFormatting.swift`, never raw
+  `String(format:)` in a view.
+
+## 8. Changes and releases
+
+- **`CHANGELOG.md` is updated in the same change as the code.** Keep a Changelog format,
+  Semantic Versioning. Put entries under `## [Unreleased]` and cite requirement IDs where
+  one applies, for example `- Sound meter now warns at 85 dB (R-34).`
+- When a release is cut, move `[Unreleased]` to a version heading with a date, and update the
+  milestone table in `docs/SPEC.md` §12.
+- **Keep `docs/SPEC.md` honest.** If a feature lands, or lands only partly, change its status in
+  the same commit. Do not mark something Done that has not been verified to work.
+- Commit messages: imperative mood, a short subject line, body explaining why where it is not
+  obvious. Reference requirement IDs when a commit implements one.
+- Do not commit or push unless asked.
+
+## 9. Known constraints
+
+- **The Simulator has almost no sensors.** Accelerometer, gyroscope, magnetometer, barometer,
+  pedometer, proximity and the camera's exposure data are unavailable or fake. `SensorHub`
+  falls back to `MockSensorSource` there, so the UI is demoable, but any claim about a real
+  reading needs a physical iPhone (R-71).
+- Sound (dB) and light (lux) figures are estimates from level metering and camera exposure.
+  They must always be shown with "≈" or an "estimate" note and are not calibrated yet (R-72).
+- iOS exposes no ambient-light and no temperature API. Do not add an "air temperature" reading;
+  Thermal State is about the phone, not the room (R-13, R-14, X-2).

@@ -1,0 +1,81 @@
+import Foundation
+import Testing
+@testable import Readout
+
+@Suite("Units and formatting")
+struct ValueFormattingTests {
+    @Test("Pressure converts from hectopascal to inches of mercury")
+    func pressureConversion() {
+        let metric = ValueFormatting.format(1_013.26, unit: .pressure, units: DisplayUnits(system: .metric))
+        #expect(metric.symbol == "hPa")
+        #expect(metric.text == "1,013.3")
+
+        let imperial = ValueFormatting.format(1_013.25, unit: .pressure, units: DisplayUnits(system: .imperial))
+        #expect(imperial.symbol == "inHg")
+        #expect(Double(imperial.text) == 29.92)
+    }
+
+    @Test("Altitude converts from metres to feet")
+    func altitudeConversion() {
+        let imperial = ValueFormatting.format(100, unit: .altitude, units: DisplayUnits(system: .imperial))
+        #expect(imperial.symbol == "ft")
+        #expect(imperial.text == "328.1")
+    }
+
+    @Test("Speed converts from metres per second")
+    func speedConversion() {
+        let metric = ValueFormatting.format(10, unit: .speed, units: DisplayUnits(system: .metric))
+        #expect(metric.text == "36.0")
+        #expect(metric.symbol == "km/h")
+
+        let imperial = ValueFormatting.format(10, unit: .speed, units: DisplayUnits(system: .imperial))
+        #expect(imperial.text == "22.4")
+        #expect(imperial.symbol == "mph")
+    }
+
+    @Test("Acceleration follows its own preference rather than the region")
+    func accelerationUnits() {
+        let g = ValueFormatting.format(1, unit: .acceleration, units: DisplayUnits(acceleration: .gravity))
+        #expect(g.spoken == "1.00 g")
+
+        let si = ValueFormatting.format(1, unit: .acceleration, units: DisplayUnits(acceleration: .metricSI))
+        #expect(si.spoken == "9.8 m/s²")
+    }
+
+    @Test("Pace is written as minutes and seconds")
+    func paceFormatting() {
+        let metric = ValueFormatting.format(330, unit: .pace, units: DisplayUnits(system: .metric))
+        #expect(metric.text == "5:30")
+        #expect(metric.symbol == "/km")
+
+        // A mile takes longer than a kilometre at the same pace.
+        let imperial = ValueFormatting.format(330, unit: .pace, units: DisplayUnits(system: .imperial))
+        #expect(imperial.text == "8:51")
+    }
+
+    @Test("Non-finite values never reach the screen as numbers")
+    func nonFiniteValues() {
+        #expect(ValueFormatting.decimal(.nan, digits: 1) == "—")
+        #expect(ValueFormatting.decimal(.infinity, digits: 1) == "—")
+        #expect(ValueFormatting.duration(0) == "—")
+        #expect(ValueFormatting.duration(-5) == "—")
+    }
+
+    @Test("Coordinates read as decimal degrees or as degrees, minutes and seconds")
+    func coordinateFormatting() {
+        let decimal = ValueFormatting.coordinate(latitude: 1.3521, longitude: -103.8198, format: .decimal)
+        #expect(decimal.contains("1.35210° N"))
+        #expect(decimal.contains("103.81980° W"))
+
+        let sexagesimal = ValueFormatting.coordinate(latitude: -1.5, longitude: 103.5, format: .degreesMinutesSeconds)
+        #expect(sexagesimal.contains("1° 30′ 0.0″ S"))
+        #expect(sexagesimal.contains("103° 30′ 0.0″ E"))
+    }
+
+    @Test("Headings map to compass points", arguments: [
+        (0.0, "N"), (90.0, "E"), (180.0, "S"), (270.0, "W"), (247.0, "WSW"), (359.0, "N"),
+    ])
+    func cardinalPoints(degrees: Double, expected: String) {
+        #expect(ValueFormatting.cardinal(degrees) == expected)
+    }
+}

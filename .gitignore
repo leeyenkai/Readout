@@ -1,0 +1,45 @@
+# macOS
+.DS_Store
+._*
+
+# Xcode — user state
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+
+# Xcode — build products
+build/
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.app
+*.xcarchive
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/
+Package.resolved
+
+# Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+# Signing / secrets — never commit these
+*.mobileprovision
+*.p12
+*.p8
+*.cer
+Secrets.xcconfig
+
+# Fastlane (if added later)
+fastlane/report.xml
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# Agent scratch
+.claude/settings.local.json
+scratch/
