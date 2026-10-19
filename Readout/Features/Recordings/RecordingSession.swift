@@ -24,6 +24,11 @@ final class RecordingSession {
     /// on disk anyway, so there is nothing here worth querying across sessions.
     private var tracksData: Data = Data()
 
+    /// Decoded once and kept. The list reads `tracks` twice per row on every redraw, and
+    /// spinning up a `JSONDecoder` each time showed up as scrolling cost. `@Transient` keeps
+    /// it out of the schema, so this is a cache and not a stored column.
+    @Transient private var decodedTracks: [RecordedTrack]? = nil
+
     init(
         identifier: UUID,
         name: String,
@@ -45,8 +50,14 @@ final class RecordingSession {
     }
 
     var tracks: [RecordedTrack] {
-        get { (try? JSONDecoder().decode([RecordedTrack].self, from: tracksData)) ?? [] }
+        get {
+            if let decodedTracks { return decodedTracks }
+            let decoded = (try? JSONDecoder().decode([RecordedTrack].self, from: tracksData)) ?? []
+            decodedTracks = decoded
+            return decoded
+        }
         set {
+            decodedTracks = newValue
             tracksData = (try? JSONEncoder().encode(newValue)) ?? Data()
             sampleCount = newValue.reduce(0) { $0 + $1.sampleCount }
             byteCount = newValue.reduce(0) { $0 + $1.byteCount }

@@ -7,6 +7,7 @@ struct CompassToolView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var lockedBearing: Double?
+    @State private var leases: [SensorLease] = []
 
     var body: some View {
         ScrollView {
@@ -47,14 +48,15 @@ struct CompassToolView: View {
             }
         }
         .onAppear {
-            hub.activate(.heading, rate: .display)
-            hub.activate(.coordinates)
-            hub.activate(.gpsAltitude)
+            leases = [
+                hub.activate(.heading, rate: .display),
+                hub.activate(.coordinates),
+                hub.activate(.gpsAltitude),
+            ]
         }
         .onDisappear {
-            hub.deactivate(.heading, rate: .display)
-            hub.deactivate(.coordinates)
-            hub.deactivate(.gpsAltitude)
+            leases.forEach(hub.release)
+            leases = []
         }
         .sensoryFeedback(trigger: cardinalIndex) { _, _ in
             // A tap as the dial crosses N, E, S or W (R-51).

@@ -18,10 +18,31 @@ final class AudioLevelProvider: SensorProvider {
 
     private(set) var peak: Double = 0
 
-    private let engine = AVAudioEngine()
+    /// What the microphone is actually doing. The Sound meter shows this rather than holding
+    /// the last number on screen: a call or another app taking the microphone used to freeze
+    /// the reading with no sign that it had stopped being true (P-2, R-34).
+    private(set) var status: Status = .stopped
+
+    enum Status: Equatable {
+        case stopped
+        case live
+        /// Something else has the microphone — a call, Siri, another app.
+        case interrupted
+    }
+
+    private var engine = AVAudioEngine()
     private let meter = LevelMeter()
     private var timer: Timer?
     private var isRunning = false
+    /// Whether a view still wants the microphone, as distinct from whether it is running.
+    /// An interruption stops the engine without clearing this, so the level comes back by
+    /// itself when the call ends.
+    private var isWanted = false
+    /// Tracked separately from `isRunning`, because a tap installed before a throwing
+    /// `engine.start()` is still installed. Removing it only when the engine was running
+    /// left it behind, and the next `installTap` on the same bus traps inside AVFAudio.
+    private var hasTap = false
+    private var observers: [NSObjectProtocol] = []
 
     func isSupported(_ reading: ReadingID) -> Bool {
         !AVAudioSession.sharedInstance().availableInputs.isNilOrEmpty
@@ -30,6 +51,29 @@ final class AudioLevelProvider: SensorProvider {
     func start(_ reading: ReadingID, rate: ActivationRate) {
         guard reading == .soundLevel, !isRunning else { return }
         guard AVAudioApplication.shared.recordPermission == .granted else { return }
+        isWanted = true
+        observeSessionEvents()
+        startEngine()
+    }
+
+    func stop(_ reading: ReadingID) {
+        guard reading == .soundLevel else { return }
+        isWanted = false
+        observers.forEach(NotificationCenter.default.removeObserver)
+        observers = []
+        teardown()
+        status = .stopped
+        peak = 0
+    }
+
+    func resetPeak() {
+        peak = 0
+        meter.reset()
+    }
+
+    // MARK: - Engine
+
+    private func startEngine() {
         do {
             let session = AVAudioSession.sharedInstance()
             // Measurement mode turns off the automatic gain that would distort a level reading.
@@ -38,37 +82,104 @@ final class AudioLevelProvider: SensorProvider {
 
             let input = engine.inputNode
             let format = input.outputFormat(forBus: 0)
-            guard format.sampleRate > 0 else { return }
+            guard format.sampleRate > 0 else {
+                teardown()
+                status = .interrupted
+                return
+            }
             let meter = meter
             input.installTap(onBus: 0, bufferSize: 1_024, format: format) { buffer, _ in
                 meter.consume(buffer)
             }
+            hasTap = true
             engine.prepare()
             try engine.start()
             isRunning = true
+            status = .live
             startPublishing()
         } catch {
-            stop(reading)
+            // Routine: another app holds the microphone, or an interruption is still in force.
+            teardown()
+            status = .interrupted
         }
     }
 
-    func stop(_ reading: ReadingID) {
-        guard reading == .soundLevel else { return }
+    /// Returns the engine to a state `startEngine()` can be called from again.
+    private func teardown() {
         timer?.invalidate()
         timer = nil
-        if isRunning {
+        if hasTap {
             engine.inputNode.removeTap(onBus: 0)
+            hasTap = false
+        }
+        if engine.isRunning {
             engine.stop()
-            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         }
         isRunning = false
         meter.reset()
-        peak = 0
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
-    func resetPeak() {
-        peak = 0
-        meter.reset()
+    private func restart() {
+        teardown()
+        guard isWanted else { return }
+        startEngine()
+    }
+
+    // MARK: - Session events
+
+    private func observeSessionEvents() {
+        guard observers.isEmpty else { return }
+        let centre = NotificationCenter.default
+        observers.append(centre.addObserver(
+            forName: AVAudioSession.interruptionNotification, object: nil, queue: .main
+        ) { [weak self] notification in
+            // Notification is not Sendable, so the two values that matter are read here and
+            // only they cross to the main actor.
+            let type = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+            let options = notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt
+            MainActor.assumeIsolated { self?.handleInterruption(type: type, options: options) }
+        })
+        // A headset or Bluetooth microphone arriving changes the hardware format, and a tap
+        // installed with the old one asserts. Reinstall it against the new route.
+        observers.append(centre.addObserver(
+            forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.handleRouteChange() }
+        })
+        // The audio server died and took the engine with it; nothing survives but a new one.
+        observers.append(centre.addObserver(
+            forName: AVAudioSession.mediaServicesWereResetNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.handleMediaServicesReset() }
+        })
+    }
+
+    private func handleInterruption(type: UInt?, options: UInt?) {
+        guard let type, let kind = AVAudioSession.InterruptionType(rawValue: type) else { return }
+        switch kind {
+        case .began:
+            teardown()
+            status = .interrupted
+        case .ended:
+            let resumable = AVAudioSession.InterruptionOptions(rawValue: options ?? 0)
+            guard resumable.contains(.shouldResume) else { return }
+            restart()
+        @unknown default:
+            restart()
+        }
+    }
+
+    private func handleRouteChange() {
+        guard isRunning else { return }
+        restart()
+    }
+
+    private func handleMediaServicesReset() {
+        teardown()
+        engine = AVAudioEngine()
+        guard isWanted else { return }
+        startEngine()
     }
 
     private func startPublishing() {
@@ -83,7 +194,7 @@ final class AudioLevelProvider: SensorProvider {
     }
 
     private func publish() {
-        guard isRunning else { return }
+        guard isRunning, status == .live else { return }
         let rms = meter.smoothedRMS
         let decibels = SoundLevelMaths.decibels(rms: rms, calibrationOffset: calibrationOffset)
         peak = max(peak, decibels)

@@ -7,6 +7,7 @@ struct LightMeterView: View {
     @Environment(SensorHub.self) private var hub
     @Environment(AppSettings.self) private var settings
 
+    @State private var lease: SensorLease?
     @State private var isHeld = false
     @State private var frozen: Double?
     @State private var isFrontCamera = false
@@ -20,7 +21,6 @@ struct LightMeterView: View {
                 case .needsPermission(let permission):
                     PermissionCard(permission: permission, isDenied: false) {
                         await hub.permissions.request(permission)
-                        hub.activate(.light)
                     }
                 case .denied(let permission):
                     PermissionCard(permission: permission, isDenied: true) {
@@ -52,12 +52,25 @@ struct LightMeterView: View {
                 RecordButton(readings: [.light])
             }
         }
-        .onAppear { hub.activate(.light) }
+        .onAppear { syncActivation() }
         .onDisappear {
-            hub.deactivate(.light)
+            hub.release(lease)
+            lease = nil
             hub.light.position = .back
         }
+        .onChange(of: hub.availability(.light)) { _, _ in syncActivation() }
     }
+
+    /// Starts the camera once the permission allows it, and never more than once. The card
+    /// above only asks; this reacts to the answer. Activating from the card as well used to
+    /// leave an unbalanced claim behind, so the camera kept running — indicator and all —
+    /// long after the user had walked away from the tool (R-19, R-64).
+    private func syncActivation() {
+        guard hub.availability(.light).isUsable else { return }
+        guard lease == nil else { return }
+        lease = hub.activate(.light)
+    }
+
 
     private var lux: Double? {
         frozen ?? hub.sample(.light)?.value(0)

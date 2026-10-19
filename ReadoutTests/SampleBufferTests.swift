@@ -83,6 +83,27 @@ struct SampleBufferTests {
         #expect(SensorSample(values: [0, 0, 0]).magnitude == 0)
     }
 
+    /// The pedometer only reports a pace once you are walking, so a reading's channel count
+    /// can grow part way through. The sample where that happens used to be dropped for the
+    /// channels already known, which left the live statistics disagreeing with the recorded
+    /// ones for the same session.
+    @Test("A sample that adds a channel still counts for the channels already there")
+    func channelAppearingMidStream() {
+        var buffer = SampleBuffer()
+        let start = Date(timeIntervalSince1970: 1_000)
+        _ = buffer.append(SensorSample(time: start, values: [10]))
+        _ = buffer.append(SensorSample(time: start.addingTimeInterval(1), values: [20, 100]))
+
+        let first = buffer.stats(channel: 0)
+        #expect(first?.count == 2)
+        #expect(first?.minimum == 10)
+        #expect(first?.maximum == 20)
+
+        let second = buffer.stats(channel: 1)
+        #expect(second?.count == 1)
+        #expect(second?.minimum == 100)
+    }
+
     @Test("Asking for a channel that is not there gives nothing")
     func missingChannel() {
         let sample = SensorSample(values: [1])

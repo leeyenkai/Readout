@@ -78,4 +78,17 @@ struct ValueFormattingTests {
     func cardinalPoints(degrees: Double, expected: String) {
         #expect(ValueFormatting.cardinal(degrees) == expected)
     }
+
+    /// Core Location reports an unknown position as `kCLLocationCoordinate2DInvalid`, whose
+    /// components are NaN, and `Int(_: Double)` traps on NaN rather than clamping. Both of
+    /// these used to crash the app outright.
+    @Test("A position the phone does not have formats as a dash instead of crashing", arguments: [
+        Double.nan, .infinity, -.infinity,
+    ])
+    func nonFiniteCoordinates(value: Double) {
+        #expect(ValueFormatting.sexagesimal(value, positive: "N", negative: "S") == "—")
+        #expect(ValueFormatting.cardinal(value) == "—")
+        #expect(ValueFormatting.coordinate(latitude: value, longitude: value, format: .degreesMinutesSeconds).contains("—"))
+        #expect(ValueFormatting.coordinate(latitude: value, longitude: value, format: .decimal).contains("—"))
+    }
 }

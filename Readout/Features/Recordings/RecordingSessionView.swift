@@ -1,3 +1,4 @@
+import Accessibility
 import Charts
 import SwiftUI
 
@@ -119,8 +120,8 @@ struct RecordingSessionView: View {
         series = await Task.detached(priority: .userInitiated) {
             var parsed: [ReadingID: RecordedSeries] = [:]
             for file in files {
-                guard let text = try? String(contentsOf: file.url, encoding: .utf8) else { continue }
-                parsed[file.reading] = RecordedSeries(csv: text)
+                guard let series = RecordedSeries(contentsOf: file.url) else { continue }
+                parsed[file.reading] = series
             }
             return parsed
         }.value
@@ -177,6 +178,8 @@ private struct TrackPanel: View {
         }
         .padding(14)
         .glassEffect(.regular, in: .rect(cornerRadius: 24))
+        .accessibilityElement(children: .contain)
+        .accessibilityChartDescriptor(self)
     }
 
     private var chart: some View {
@@ -190,6 +193,7 @@ private struct TrackPanel: View {
                         series: .value("Channel", channel.name)
                     )
                     .foregroundStyle(channel.axis?.colour ?? Color.accentColor)
+                    .lineStyle(StrokeStyle(lineWidth: 2, dash: channel.axis?.dash ?? []))
                     .interpolationMethod(.monotone)
                 }
             }
@@ -241,5 +245,53 @@ private struct TrackPanel: View {
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(label) \(formatted.spoken)")
+    }
+}
+
+extension TrackPanel: @MainActor AXChartDescriptorRepresentable {
+    /// The recorded trace as an audio graph, the same as the live chart offers (R-52).
+    func makeChartDescriptor() -> AXChartDescriptor {
+        var lowest = Double.greatestFiniteMagnitude
+        var highest = -Double.greatestFiniteMagnitude
+        var longest: Double = 0
+
+        let seriesDescriptors = descriptor.channels.enumerated().map { index, channel -> AXDataSeriesDescriptor in
+            let presentation = channel.unit.presentation(units)
+            let points = series.points(channel: index).map { point -> AXDataPoint in
+                let value = presentation.convert(point.value)
+                lowest = min(lowest, value)
+                highest = max(highest, value)
+                longest = max(longest, point.elapsed)
+                return AXDataPoint(x: point.elapsed, y: value)
+            }
+            return AXDataSeriesDescriptor(name: channel.name, isContinuous: true, dataPoints: points)
+        }
+
+        let floor = lowest <= highest ? lowest : 0
+        let ceiling = highest > floor ? highest : floor + 1
+        let digits = digits
+
+        return AXChartDescriptor(
+            title: descriptor.name,
+            summary: descriptor.estimateNote,
+            xAxis: AXNumericDataAxisDescriptor(
+                title: "Seconds into the recording",
+                range: 0...(longest > 0 ? longest : 1),
+                gridlinePositions: []
+            ) { "\(ValueFormatting.decimal($0, digits: 0)) seconds" },
+            yAxis: AXNumericDataAxisDescriptor(
+                title: descriptor.name,
+                range: floor...ceiling,
+                gridlinePositions: []
+            ) { value in
+                let symbol = descriptor.channels.first?.unit.presentation(units).symbol ?? ""
+                return "\(ValueFormatting.decimal(value, digits: digits)) \(symbol)"
+            },
+            series: seriesDescriptors
+        )
+    }
+
+    func updateChartDescriptor(_ descriptor: AXChartDescriptor) {
+        // Rebuilt from the parsed series whenever VoiceOver asks.
     }
 }

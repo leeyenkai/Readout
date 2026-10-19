@@ -79,7 +79,11 @@ struct SettingsView: View {
                 } header: {
                     Text("Calibration")
                 } footer: {
-                    Text("Sound and light are estimates, not calibrated measurements. If you have a reference meter to hand, nudge these until Readout agrees with it.")
+                    Text("""
+                        Sound and light are estimates, not calibrated measurements. If you \
+                        have a reference meter to hand, nudge these until Readout agrees \
+                        with it. \(Self.baselineNote)
+                        """)
                 }
 
                 Section {
@@ -133,6 +137,14 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+
+    /// Says plainly whether this iPhone has a measured baseline behind the sliders, so
+    /// nobody assumes a calibration that does not exist (P-2, R-72).
+    private static var baselineNote: String {
+        DeviceCalibration.hasEntryForThisDevice
+            ? "Readout also applies a measured baseline for this iPhone model."
+            : "Readout has no measured baseline for this iPhone model, so these start from zero."
     }
 
     private static var version: String {

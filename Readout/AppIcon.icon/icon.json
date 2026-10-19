@@ -1,0 +1,30 @@
+{
+  "fill" : {
+    "linear-gradient" : [
+      "srgb:0.082,0.384,0.290,1.000",
+      "srgb:0.035,0.192,0.141,1.000"
+    ]
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "image-name" : "trace.svg",
+          "name" : "Trace"
+        },
+        {
+          "image-name" : "dot.svg",
+          "name" : "Live point"
+        }
+      ]
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : [
+      "iOS"
+    ]
+  }
+}

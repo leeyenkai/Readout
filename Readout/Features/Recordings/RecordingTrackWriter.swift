@@ -14,10 +14,16 @@ final class RecordingTrackWriter {
     private var builder: RecordedTrackBuilder
     private var gate: SampleRateGate
     private var buffer = ""
+    /// The samples behind the rows sitting in `buffer`. They only reach the statistics once
+    /// their rows reach the file, so a refused write cannot leave the saved metadata claiming
+    /// more samples than the CSV actually holds.
+    private var pending: [SensorSample] = []
     private var handle: FileHandle
     private(set) var byteCount = 0
     /// Set if the disk refused a write. The session is still saved, with whatever reached it.
     private(set) var hasFailed = false
+    /// Rows the disk refused, reported to the user rather than quietly forgotten.
+    private(set) var droppedSamples = 0
 
     /// About 16 KB of rows before a write.
     private static let bufferLimit = 16_384
@@ -51,7 +57,7 @@ final class RecordingTrackWriter {
     /// Keeps a sample if it lands on the chosen rate's grid (R-39).
     func receive(_ sample: SensorSample) {
         guard gate.accepts(sample.time) else { return }
-        builder.add(sample)
+        pending.append(sample)
         buffer += table.row(sample) + "\n"
         if buffer.utf8.count >= Self.bufferLimit {
             flush()
@@ -61,18 +67,32 @@ final class RecordingTrackWriter {
     func flush() {
         guard !buffer.isEmpty else { return }
         let data = Data(buffer.utf8)
+        let samples = pending
         buffer.removeAll(keepingCapacity: true)
+        pending.removeAll(keepingCapacity: true)
         do {
             try handle.write(contentsOf: data)
             byteCount += data.count
+            for sample in samples {
+                builder.add(sample)
+            }
         } catch {
             hasFailed = true
+            droppedSamples += samples.count
         }
     }
 
     func finish() -> RecordedTrack {
         flush()
+        // Rows sitting in the page cache are lost to a panic or a hard reset; a recording is
+        // worth the one synchronous flush it takes to make it durable.
+        try? handle.synchronize()
         try? handle.close()
         return builder.finish(byteCount: byteCount)
+    }
+
+    /// The track as it stands, for the checkpoint a crash would be recovered from.
+    func snapshot() -> RecordedTrack {
+        builder.finish(byteCount: byteCount)
     }
 }

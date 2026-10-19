@@ -21,6 +21,9 @@ final class AppSettings {
         hiddenReadings = Set(
             (defaults.array(forKey: Key.hiddenReadings) as? [String] ?? []).compactMap(ReadingID.init(rawValue:))
         )
+        readingOrder = (defaults.array(forKey: Key.readingOrder) as? [String] ?? [])
+            .compactMap(ReadingID.init(rawValue:))
+        hasSeenWelcome = defaults.object(forKey: Key.hasSeenWelcome) as? Bool ?? false
     }
 
     var unitSystem: UnitSystem { didSet { defaults.encode(unitSystem, forKey: Key.unitSystem) } }
@@ -39,6 +42,17 @@ final class AppSettings {
     /// Tiles the user has hidden from the grid (R-22).
     var hiddenReadings: Set<ReadingID> {
         didSet { defaults.set(hiddenReadings.map(\.rawValue), forKey: Key.hiddenReadings) }
+    }
+
+    /// The order the user has dragged the tiles into. Readings missing from it — a new one
+    /// added by an update, or an order never changed — follow in catalog order (R-22).
+    var readingOrder: [ReadingID] {
+        didSet { defaults.set(readingOrder.map(\.rawValue), forKey: Key.readingOrder) }
+    }
+
+    /// Set once the first-run explainer has been dismissed (R-73).
+    var hasSeenWelcome: Bool {
+        didSet { defaults.set(hasSeenWelcome, forKey: Key.hasSeenWelcome) }
     }
 
     var displayUnits: DisplayUnits {
@@ -65,6 +79,37 @@ final class AppSettings {
         hiddenReadings = []
     }
 
+    /// Catalog order, with the user's own arrangement applied where they have made one.
+    func ordered(_ readings: [ReadingDescriptor]) -> [ReadingDescriptor] {
+        guard !readingOrder.isEmpty else { return readings }
+        let rank = Dictionary(uniqueKeysWithValues: readingOrder.enumerated().map { ($1, $0) })
+        return readings.enumerated().sorted { left, right in
+            // A reading the order has never seen keeps its catalog position, after the ones
+            // that have been arranged.
+            let leftRank = rank[left.element.id] ?? readingOrder.count + left.offset
+            let rightRank = rank[right.element.id] ?? readingOrder.count + right.offset
+            return leftRank < rightRank
+        }.map(\.element)
+    }
+
+    /// Moves one reading to sit where another one is, and remembers the result (R-22).
+    func move(_ reading: ReadingID, before target: ReadingID) {
+        guard reading != target else { return }
+        var order = readingOrder.isEmpty ? ReadingCatalog.all.map(\.id) : readingOrder
+        for missing in ReadingCatalog.all.map(\.id) where !order.contains(missing) {
+            order.append(missing)
+        }
+        guard let from = order.firstIndex(of: reading) else { return }
+        order.remove(at: from)
+        guard let to = order.firstIndex(of: target) else { return }
+        order.insert(reading, at: to)
+        readingOrder = order
+    }
+
+    func resetOrder() {
+        readingOrder = []
+    }
+
     private enum Key {
         static let unitSystem = "settings.unitSystem"
         static let accelerationUnit = "settings.accelerationUnit"
@@ -76,6 +121,8 @@ final class AppSettings {
         static let soundOffset = "settings.soundCalibrationOffset"
         static let lightCalibration = "settings.lightCalibration"
         static let hiddenReadings = "settings.hiddenReadings"
+        static let readingOrder = "settings.readingOrder"
+        static let hasSeenWelcome = "settings.hasSeenWelcome"
     }
 }
 

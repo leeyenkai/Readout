@@ -7,6 +7,8 @@ struct SoundMeterView: View {
     @Environment(SensorHub.self) private var hub
     @Environment(AppSettings.self) private var settings
 
+    @State private var lease: SensorLease?
+
     private let descriptor = ReadingCatalog.descriptor(.soundLevel)
 
     var body: some View {
@@ -16,7 +18,6 @@ struct SoundMeterView: View {
                 case .needsPermission(let permission):
                     PermissionCard(permission: permission, isDenied: false) {
                         await hub.permissions.request(permission)
-                        hub.activate(.soundLevel)
                     }
                 case .denied(let permission):
                     PermissionCard(permission: permission, isDenied: true) {
@@ -49,11 +50,30 @@ struct SoundMeterView: View {
                 RecordButton(readings: [.soundLevel])
             }
         }
-        .onAppear { hub.activate(.soundLevel) }
-        .onDisappear { hub.deactivate(.soundLevel) }
+        .onAppear { syncActivation() }
+        .onDisappear {
+            hub.release(lease)
+            lease = nil
+        }
+        .onChange(of: hub.availability(.soundLevel)) { _, _ in syncActivation() }
     }
 
-    private var current: Double? { hub.sample(.soundLevel)?.value(0) }
+    /// Starts the microphone once the permission allows it, and never more than once. The card
+    /// above only asks; this reacts to the answer. Activating from the card as well used to
+    /// leave an unbalanced claim behind, so the microphone kept running — indicator and all —
+    /// long after the user had walked away from the tool (R-19, R-64).
+    private func syncActivation() {
+        guard hub.availability(.soundLevel).isUsable else { return }
+        guard lease == nil else { return }
+        lease = hub.activate(.soundLevel)
+    }
+
+
+    /// Nothing is shown while another app holds the microphone: the last number stops being
+    /// true the moment the engine stops, and a frozen reading is worse than none (P-2).
+    private var isInterrupted: Bool { hub.audio.status == .interrupted }
+
+    private var current: Double? { isInterrupted ? nil : hub.sample(.soundLevel)?.value(0) }
 
     private var level: some View {
         VStack(spacing: 6) {
@@ -73,7 +93,11 @@ struct SoundMeterView: View {
                     .foregroundStyle(.secondary)
             }
 
-            if isLoud {
+            if isInterrupted {
+                Label("Paused — something else is using the microphone", systemImage: "pause.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if isLoud {
                 Label("Long exposure at this level risks your hearing", systemImage: "ear.trianglebadge.exclamationmark")
                     .font(.caption)
                     .foregroundStyle(.orange)
@@ -83,7 +107,10 @@ struct SoundMeterView: View {
         .padding(.vertical, 18)
         .glassEffect(.regular, in: .rect(cornerRadius: 24))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(current.map { "About \(ValueFormatting.decimal($0, digits: 0)) decibels" } ?? "No reading")
+        .accessibilityLabel(
+            current.map { "About \(ValueFormatting.decimal($0, digits: 0)) decibels" }
+                ?? (isInterrupted ? "Paused. Something else is using the microphone." : "No reading")
+        )
     }
 
     private var summary: some View {

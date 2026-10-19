@@ -11,7 +11,9 @@ struct RecordingsView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if sessions.isEmpty {
+                if !recorder.isStorePersistent {
+                    StoreUnavailableNotice()
+                } else if sessions.isEmpty {
                     EmptyRecordings { isShowingNewRecording = true }
                 } else {
                     List {
@@ -45,6 +47,22 @@ struct RecordingsView: View {
     private func delete(_ offsets: IndexSet) {
         for index in offsets {
             recorder.delete(sessions[index])
+        }
+    }
+}
+
+/// Shown when SwiftData could not open its store. Saying so is the honest answer: the
+/// recordings are still on the device, and nothing has been deleted (P-2).
+private struct StoreUnavailableNotice: View {
+    var body: some View {
+        ContentUnavailableView {
+            Label("Recordings unavailable", systemImage: "externaldrive.badge.exclamationmark")
+        } description: {
+            Text("""
+                Readout could not open the file that lists your recordings, so it cannot show \
+                them or make a new one. Nothing has been deleted — the recordings are still on \
+                this iPhone. Restarting Readout usually clears this.
+                """)
         }
     }
 }

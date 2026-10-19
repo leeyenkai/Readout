@@ -20,6 +20,14 @@ struct RecordingBar: View {
                 Text("\(RecordingNaming.sampleCountText(recorder.sampleCount)) · \(recorder.rate.title)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+
+                // A session stops itself at its limit, so it says so before it gets there
+                // rather than ending without warning (Q-4).
+                if isNearLimit {
+                    Text("Nearing the session limit")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
             }
 
             Spacer(minLength: 0)
@@ -37,5 +45,8 @@ struct RecordingBar: View {
         .padding(.bottom, 6)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Recording, \(RecordingNaming.elapsedText(recorder.elapsed)), \(RecordingNaming.sampleCountText(recorder.sampleCount))")
+        .accessibilityHint(isNearLimit ? "Nearing the session limit" : "")
     }
+
+    private var isNearLimit: Bool { recorder.limitFraction >= 0.8 }
 }

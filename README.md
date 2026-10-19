@@ -12,8 +12,14 @@ It is a hobby project. No ads, no in-app purchases, no accounts, and no network 
 
 ## Status
 
-**v0.1.0 — first MVP.** Every reading and every instrument works; recording and CSV export land
-in v0.2.0. Nothing has been verified on physical hardware yet.
+**v0.3.0 — release readiness.** Every reading, every instrument, recording and CSV export, the
+app icon, and the scaffolding an App Store submission needs. What is left before 1.0 is the
+work a build machine cannot do: verifying the readings on a real iPhone, calibrating sound and
+light against a reference meter, and a TestFlight pass — the checklist is
+[`docs/RELEASE.md`](docs/RELEASE.md) §2.
+
+**Nothing has been verified on physical hardware yet.** Everything here was built and run in
+the Simulator, where the numbers come from a synthetic source.
 
 See [`CHANGELOG.md`](CHANGELOG.md) for what has shipped and [`docs/SPEC.md`](docs/SPEC.md) §12
 for the milestones.
@@ -21,7 +27,7 @@ for the milestones.
 ## Requirements
 
 - iOS 26.0 or later, iPhone only
-- Xcode 27 (iOS 27 SDK), Swift 6.4
+- Xcode 27 (iOS 27 SDK), Swift 6.4 toolchain, Swift 6 language mode
 - No third-party dependencies
 
 ## Build and run
@@ -36,6 +42,12 @@ Or from the command line:
 
 ```bash
 xcodebuild -project Readout.xcodeproj -scheme Readout -destination 'generic/platform=iOS Simulator' build
+```
+
+Run the tests with:
+
+```bash
+xcodebuild -project Readout.xcodeproj -scheme Readout -destination 'platform=iOS Simulator,name=Readout iPhone' test
 ```
 
 The Simulator has almost no sensors, so Readout falls back to a synthetic source there: the UI
@@ -71,6 +83,7 @@ steps), Location While Using (location group, true north), Microphone (sound), C
 | [`AGENTS.md`](AGENTS.md) | Working agreement: architecture rules, conventions, constraints |
 | [`CLAUDE.md`](CLAUDE.md) | Claude Code pointer to `AGENTS.md` |
 | [`CHANGELOG.md`](CHANGELOG.md) | Release history |
+| [`docs/RELEASE.md`](docs/RELEASE.md) | What is done for release, and the on-device checklist that still gates v1.0 |
 | `Readout/` | App source: `App/`, `Model/`, `Sensors/`, `Features/`, `Support/` |
 | `ReadoutTests/` | Unit tests for the pure logic (units, dB/lux maths, statistics) |
 
@@ -82,4 +95,4 @@ code.
 
 ## Licence
 
-Not yet chosen. All rights reserved for now.
+[MIT](LICENSE).

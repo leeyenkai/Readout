@@ -48,17 +48,23 @@ panel first, then build, install and launch, then take screenshots to verify.
 
 ```
 Readout/
+├── .github/workflows/      CI: builds and runs the tests on every push
 ├── docs/SPEC.md            Specification (requirement IDs R-nn)
+├── docs/RELEASE.md         What is done for release, and the on-device checklist
+├── scripts/                screenshots.sh and other one-off tooling
 ├── Readout/                App target
 │   ├── App/                Entry point, root view, app-wide environment
-│   ├── Model/              Reading catalog, values, units, comparison scales
+│   ├── Model/              Reading catalog, values, units, comparison scales, calibration
 │   ├── Sensors/            Sensor hub + one provider per framework
 │   ├── Features/
 │   │   ├── Readings/       Tile grid, tiles, detail view, chart, stats
 │   │   ├── Tools/          Spirit level, compass, sound meter, light meter
 │   │   ├── Recordings/     Recording and CSV export (v0.2)
+│   │   ├── Onboarding/     The one-time first-run explainer (v0.3)
 │   │   └── Settings/       Settings sheet and stored preferences
 │   ├── Support/            Haptics and other small helpers
+│   ├── AppIcon.icon/       Icon Composer document — open it in Icon Composer, not a text editor
+│   ├── PrivacyInfo.xcprivacy
 │   └── Assets.xcassets/
 └── ReadoutTests/           Unit tests for pure logic
 ```
@@ -68,9 +74,11 @@ Readout/
 1. **One hub, one manager.** `SensorHub` is the only owner of `CMMotionManager`,
    `CLLocationManager`, the audio session and the capture session (R-63). Views never create
    a manager. Add a new sensor by adding a provider, not by reaching for a framework in a view.
-2. **Reference-counted lifecycle.** Views call `hub.activate(_:)` in `.onAppear` and
-   `hub.deactivate(_:)` in `.onDisappear`. A provider starts on the first activation and stops
-   on the last deactivation or on backgrounding (R-64). Never leave a sensor running.
+2. **Leased lifecycle.** Views take a lease — `let lease = hub.activate(_:)` in `.onAppear` —
+   and give it back with `hub.release(lease)` in `.onDisappear`. A provider starts on the first
+   lease and stops when the last one goes, or on backgrounding (R-64). Never leave a sensor
+   running: a lease exists precisely because the old paired `activate`/`deactivate` calls were
+   maintained by hand and left the microphone and camera on.
 3. **Catalog-driven UI.** A reading's name, symbol, group, unit, permission, explainer and
    comparison scale live in `ReadingCatalog`. Adding a reading should mean adding a
    `ReadingDescriptor` and a provider — not a new view.
@@ -106,6 +114,8 @@ Readout/
 
 ## 8. Changes and releases
 
+- Warnings are errors (`SWIFT_TREAT_WARNINGS_AS_ERRORS`). A change that introduces one does
+  not build.
 - **`CHANGELOG.md` is updated in the same change as the code.** Keep a Changelog format,
   Semantic Versioning. Put entries under `## [Unreleased]` and cite requirement IDs where
   one applies, for example `- Sound meter now warns at 85 dB (R-34).`

@@ -12,15 +12,16 @@ struct ReadoutApp: App {
     init() {
         let settings = AppSettings()
         let hub = SensorHub(settings: settings)
-        let container = Self.makeContainer()
+        let store = Self.makeContainer()
         _settings = State(initialValue: settings)
         _hub = State(initialValue: hub)
         _recorder = State(initialValue: RecordingService(
             hub: hub,
             store: RecordingStore(),
-            context: container.mainContext
+            context: store.container.mainContext,
+            isStorePersistent: store.isPersistent
         ))
-        self.container = container
+        self.container = store.container
     }
 
     var body: some Scene {
@@ -36,7 +37,11 @@ struct ReadoutApp: App {
     /// Session metadata is kept in SwiftData (R-61). If the store cannot be opened the app
     /// still runs on an in-memory one: readings and tools do not depend on it, and saying so
     /// is better than refusing to launch.
-    private static func makeContainer() -> ModelContainer {
+    ///
+    /// The caller is told which it got. An in-memory store knows about no sessions, and code
+    /// that takes that for the truth — the launch-time tidy-up of files no session points at
+    /// — would delete every recording on the device.
+    private static func makeContainer() -> (container: ModelContainer, isPersistent: Bool) {
         let schema = Schema([RecordingSession.self])
         // A newly installed app has no Application Support directory and SwiftData will not
         // make one, so the store is given an explicit URL in a directory created here —
@@ -52,13 +57,13 @@ struct ReadoutApp: App {
                 url: support.appending(path: "Recordings.store")
             )
             if let container = try? ModelContainer(for: schema, configurations: configuration) {
-                return container
+                return (container, true)
             }
         }
         let memory = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         guard let container = try? ModelContainer(for: schema, configurations: memory) else {
             preconditionFailure("SwiftData could not open a store for RecordingSession")
         }
-        return container
+        return (container, false)
     }
 }

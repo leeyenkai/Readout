@@ -51,6 +51,10 @@ struct ValueFormatting {
     }
 
     static func sexagesimal(_ value: Double, positive: String, negative: String) -> String {
+        // Core Location reports an unknown position as kCLLocationCoordinate2DInvalid, whose
+        // components are NaN. Int(_: Double) traps on NaN rather than clamping, so the guard
+        // has to come before the conversion below.
+        guard value.isFinite else { return "—" }
         let magnitude = abs(value)
         let degrees = Int(magnitude)
         let minutesValue = (magnitude - Double(degrees)) * 60
@@ -61,6 +65,7 @@ struct ValueFormatting {
 
     /// The compass point a heading falls in, for example 247° → "WSW".
     static func cardinal(_ degrees: Double) -> String {
+        guard degrees.isFinite else { return "—" }
         let points = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
                       "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
         let normalised = degrees.truncatingRemainder(dividingBy: 360)

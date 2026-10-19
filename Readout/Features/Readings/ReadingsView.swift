@@ -6,8 +6,8 @@ struct ReadingsView: View {
     @Environment(AppSettings.self) private var settings
     @State private var isEditing = false
     @State private var isShowingSettings = false
-    /// Which readings this grid has asked for, so they can be given back exactly once (R-64).
-    @State private var activated: Set<ReadingID> = []
+    /// The grid's leases, so every reading it started is given back exactly once (R-64).
+    @State private var leases: [ReadingID: SensorLease] = [:]
 
     private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
 
@@ -57,9 +57,11 @@ struct ReadingsView: View {
             .onChange(of: isEditing) { _, _ in syncActivations() }
             .safeAreaInset(edge: .top) {
                 if isEditing {
-                    EditModeBanner(hiddenCount: settings.hiddenReadings.count) {
-                        settings.showAllReadings()
-                    }
+                    EditModeBanner(
+                        hiddenCount: settings.hiddenReadings.count,
+                        onShowAll: { settings.showAllReadings() },
+                        onResetOrder: { withAnimation(.snappy) { settings.resetOrder() } }
+                    )
                 }
             }
         }
@@ -78,27 +80,61 @@ struct ReadingsView: View {
         )
 
         if isEditing {
-            Button {
-                withAnimation(.snappy) {
-                    settings.setHidden(!settings.isHidden(descriptor.id), for: descriptor.id)
-                }
-            } label: {
-                tile.overlay(alignment: .topTrailing) {
+            // A tap gesture rather than a Button: a Button's own gesture wins the long press,
+            // and the drag never starts.
+            tile
+                .overlay(alignment: .topTrailing) {
                     Image(systemName: settings.isHidden(descriptor.id) ? "eye.slash.circle.fill" : "eye.circle.fill")
                         .font(.title3)
                         .symbolRenderingMode(.hierarchical)
                         .foregroundStyle(settings.isHidden(descriptor.id) ? .secondary : Color.accentColor)
                         .padding(8)
                 }
+                .contentShape(.rect(cornerRadius: 20))
+                .onTapGesture {
+                    withAnimation(.snappy) {
+                        settings.setHidden(!settings.isHidden(descriptor.id), for: descriptor.id)
+                    }
+                }
+                .accessibilityAddTraits(.isButton)
+                .accessibilityLabel(settings.isHidden(descriptor.id) ? "Show \(descriptor.name)" : "Hide \(descriptor.name)")
+                .draggable(descriptor.id) {
+                    // A plain label as the lift preview: dragging a live, redrawing tile
+                    // makes the drag image flicker.
+                    Label(descriptor.name, systemImage: descriptor.symbol)
+                        .padding(10)
+                        .glassEffect(.regular, in: .capsule)
+                }
+            .dropDestination(for: ReadingID.self) { dropped, _ in
+                guard let moved = dropped.first else { return false }
+                withAnimation(.snappy) { settings.move(moved, before: descriptor.id) }
+                return true
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(settings.isHidden(descriptor.id) ? "Show \(descriptor.name)" : "Hide \(descriptor.name)")
+            // VoiceOver cannot drag, so the same reordering is reachable as actions.
+            .accessibilityActions {
+                ForEach(reorderTargets(for: descriptor), id: \.id) { target in
+                    Button("Move before \(target.name)") {
+                        settings.move(descriptor.id, before: target.id)
+                    }
+                }
+            }
         } else {
             NavigationLink(value: descriptor.id) {
                 tile
             }
             .buttonStyle(.plain)
+            // Long-press is the other way into edit mode, alongside the Edit button (R-22).
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.5).onEnded { _ in
+                    withAnimation(.snappy) { isEditing = true }
+                }
+            )
         }
+    }
+
+    /// The other tiles in this reading's group, as VoiceOver move targets.
+    private func reorderTargets(for descriptor: ReadingDescriptor) -> [ReadingDescriptor] {
+        visibleReadings(in: descriptor.group).filter { $0.id != descriptor.id }
     }
 
     /// Starts the readings on screen and stops the ones that have left it. The camera,
@@ -110,26 +146,25 @@ struct ReadingsView: View {
                 .filter { $0.activation == .whileVisible }
                 .map(\.id)
         )
-        for reading in wanted.subtracting(activated) {
-            hub.activate(reading)
+        for reading in wanted.subtracting(leases.keys) {
+            leases[reading] = hub.activate(reading)
         }
-        for reading in activated.subtracting(wanted) {
-            hub.deactivate(reading)
+        for reading in Set(leases.keys).subtracting(wanted) {
+            hub.release(leases.removeValue(forKey: reading))
         }
-        activated = wanted
     }
 
     private func deactivateAll() {
-        for reading in activated {
-            hub.deactivate(reading)
+        for lease in leases.values {
+            hub.release(lease)
         }
-        activated = []
+        leases = [:]
     }
 
     /// Hidden tiles disappear from the grid but come back in edit mode so they can be
     /// restored (R-22). A reading the device lacks never appears at all (R-21).
     private func visibleReadings(in group: ReadingGroup) -> [ReadingDescriptor] {
-        hub.availableReadings(in: group).filter { isEditing || !settings.isHidden($0.id) }
+        settings.ordered(hub.availableReadings(in: group).filter { isEditing || !settings.isHidden($0.id) })
     }
 }
 
@@ -154,16 +189,19 @@ private struct GroupHeader: View {
 private struct EditModeBanner: View {
     let hiddenCount: Int
     let onShowAll: () -> Void
+    let onResetOrder: () -> Void
 
     var body: some View {
         HStack {
-            Text(hiddenCount == 0 ? "Tap a tile to hide it" : "\(hiddenCount) hidden")
+            Text(hiddenCount == 0 ? "Tap to hide · drag to reorder" : "\(hiddenCount) hidden")
                 .font(.footnote)
             Spacer()
             if hiddenCount > 0 {
                 Button("Show all", action: onShowAll)
                     .font(.footnote.weight(.semibold))
             }
+            Button("Reset order", action: onResetOrder)
+                .font(.footnote.weight(.semibold))
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)

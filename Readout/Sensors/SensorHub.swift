@@ -3,9 +3,9 @@ import SwiftUI
 
 /// The single owner of every sensor in the app (R-63).
 ///
-/// Views never touch Core Motion, Core Location or AVFoundation. They call `activate(_:)` when
-/// they appear and `deactivate(_:)` when they disappear; a provider starts on the first
-/// activation and stops on the last one, or when the app leaves the foreground (R-64).
+/// Views never touch Core Motion, Core Location or AVFoundation. They take a lease on a
+/// reading when they appear and hand it back when they disappear; a provider starts on the
+/// first lease and stops when the last one goes, or when the app leaves the foreground (R-64).
 @MainActor
 @Observable
 final class SensorHub {
@@ -32,11 +32,15 @@ final class SensorHub {
     /// A short trail of the tile's single value, kept separately so drawing 19 sparklines
     /// never walks the full history ring.
     private var trails: [ReadingID: [Double]] = [:]
-    /// Activation counts per requested rate, so one view wanting display rate does not get
-    /// downgraded when another view wanting 10 Hz goes away.
-    private var counts: [ReadingID: [ActivationRate: Int]] = [:]
+    /// The outstanding leases per reading and the rate each one asked for, so a view wanting
+    /// display rate is not downgraded when another view wanting 10 Hz goes away.
+    private var leases: [ReadingID: [UUID: ActivationRate]] = [:]
     private var running: [ReadingID: any SensorProvider] = [:]
     private var providersByReading: [ReadingID: any SensorProvider] = [:]
+    /// Resolved once at init. Hardware support does not change while the app runs, and
+    /// probing for it is expensive enough to matter: `DeviceProvider` switches proximity
+    /// monitoring on and off to test for it, and Core Location's check can block (R-7).
+    private var providersBySupportedReading: [ReadingID: any SensorProvider] = [:]
     private var isSuspended = false
     private let settings: AppSettings
 
@@ -57,6 +61,16 @@ final class SensorHub {
             self?.receive(reading, sample)
         }
         permissions.locationProvider = location
+        for reading in ReadingID.allCases {
+            if let provider = providersByReading[reading], provider.isSupported(reading) {
+                providersBySupportedReading[reading] = provider
+            } else {
+                #if targetEnvironment(simulator)
+                // The Simulator has almost no sensors, so synthetic data stands in (R-71).
+                providersBySupportedReading[reading] = mock
+                #endif
+            }
+        }
         apply(settings)
     }
 
@@ -66,31 +80,35 @@ final class SensorHub {
     func apply(_ settings: AppSettings) {
         motion.includesGravity = settings.accelerationIncludesGravity
         location.usesTrueNorth = settings.usesTrueNorth
-        audio.calibrationOffset = settings.soundCalibrationOffset
+        // The per-model correction first, then the user's own on top of it (R-10, R-66).
+        audio.calibrationOffset = DeviceCalibration.soundOffset() + settings.soundCalibrationOffset
         audio.respondsFast = settings.soundRespondsFast
-        light.calibration = settings.lightCalibration
+        light.calibration = DeviceCalibration.lightMultiplier() * settings.lightCalibration
     }
 
     // MARK: - Activation
 
-    func activate(_ reading: ReadingID, rate: ActivationRate = .standard) {
-        counts[reading, default: [:]][rate, default: 0] += 1
+    /// Claims a reading for as long as the caller holds the returned lease.
+    @discardableResult
+    func activate(_ reading: ReadingID, rate: ActivationRate = .standard) -> SensorLease {
+        let lease = SensorLease(reading: reading)
+        leases[reading, default: [:]][lease.id] = rate
         startIfNeeded(reading)
+        return lease
     }
 
-    func deactivate(_ reading: ReadingID, rate: ActivationRate = .standard) {
-        guard var rates = counts[reading], let count = rates[rate] else { return }
-        if count <= 1 {
-            rates[rate] = nil
+    /// Hands a lease back. Releasing one twice, or releasing nothing, does nothing — which is
+    /// what makes it safe to call from `onDisappear` without tracking whether the matching
+    /// `activate` ever happened.
+    func release(_ lease: SensorLease?) {
+        guard let lease, var held = leases[lease.reading] else { return }
+        guard held.removeValue(forKey: lease.id) != nil else { return }
+        leases[lease.reading] = held.isEmpty ? nil : held
+        if held.isEmpty {
+            running[lease.reading]?.stop(lease.reading)
+            running[lease.reading] = nil
         } else {
-            rates[rate] = count - 1
-        }
-        counts[reading] = rates.isEmpty ? nil : rates
-        if counts[reading] == nil {
-            running[reading]?.stop(reading)
-            running[reading] = nil
-        } else {
-            startIfNeeded(reading)
+            startIfNeeded(lease.reading)
         }
     }
 
@@ -113,7 +131,7 @@ final class SensorHub {
         guard isSuspended else { return }
         isSuspended = false
         permissions.refresh()
-        for reading in counts.keys {
+        for reading in leases.keys {
             startIfNeeded(reading)
         }
     }
@@ -127,7 +145,7 @@ final class SensorHub {
     }
 
     private func requestedRate(_ reading: ReadingID) -> ActivationRate? {
-        counts[reading]?.filter { $0.value > 0 }.keys.max()
+        leases[reading]?.values.max()
     }
 
     // MARK: - Availability
@@ -151,15 +169,7 @@ final class SensorHub {
     }
 
     private func provider(for reading: ReadingID) -> (any SensorProvider)? {
-        if let provider = providersByReading[reading], provider.isSupported(reading) {
-            return provider
-        }
-        #if targetEnvironment(simulator)
-        // The Simulator has almost no sensors, so synthetic data stands in (R-71).
-        return mock
-        #else
-        return nil
-        #endif
+        providersBySupportedReading[reading]
     }
 
     /// In the Simulator there is no real sensor to protect, and no way to answer a
@@ -210,7 +220,12 @@ final class SensorHub {
         samples[reading] = sample
         sampleObserver?(reading, sample)
         let appended = buffers[reading, default: SampleBuffer()].append(sample)
-        guard appended, let value = ReadingCatalog.descriptor(reading).summaryValue(sample) else { return }
+        // A non-finite value would put a NaN into the sparkline's path, which CoreGraphics
+        // rejects and draws as a break in the line.
+        guard appended,
+              let value = ReadingCatalog.descriptor(reading).summaryValue(sample),
+              value.isFinite
+        else { return }
         var trail = trails[reading] ?? []
         trail.append(value)
         if trail.count > Self.trailLength {
@@ -221,4 +236,15 @@ final class SensorHub {
 
     /// About six seconds at the 10 Hz the history buffer decimates to.
     private static let trailLength = 60
+}
+
+/// One view's claim on one reading, handed out by `SensorHub.activate(_:rate:)`.
+///
+/// A lease rather than a matching `deactivate(_:rate:)` call because the pairing used to be
+/// maintained by hand across six views: a view that activated twice, or gave back a rate it
+/// had not asked for, left the provider running for the rest of the app's life — with the
+/// microphone or camera indicator still lit (R-64).
+struct SensorLease: Hashable, Identifiable {
+    let id = UUID()
+    let reading: ReadingID
 }

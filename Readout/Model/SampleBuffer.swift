@@ -71,12 +71,16 @@ struct SampleBuffer: Sendable {
     }
 
     private mutating func record(_ sample: SensorSample) {
-        if stats.count < sample.values.count {
-            stats.append(contentsOf: sample.values[stats.count...].map { ChannelStats(first: $0) })
-            return
-        }
-        for (index, value) in sample.values.enumerated() where stats.indices.contains(index) {
-            stats[index].add(value)
+        // A reading can start reporting a channel part way through — the pedometer only has
+        // a pace once you are walking. The new channel starts here, and the ones already
+        // known still take this sample's value; taking the new channel and returning early
+        // used to drop them, so the live statistics disagreed with the recorded ones.
+        for (index, value) in sample.values.enumerated() {
+            if stats.indices.contains(index) {
+                stats[index].add(value)
+            } else {
+                stats.append(ChannelStats(first: value))
+            }
         }
     }
 }

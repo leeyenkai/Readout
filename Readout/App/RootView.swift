@@ -23,9 +23,15 @@ struct RootView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             // Every sensor stops the moment the app is no longer in front (R-64, P-3).
+            //
+            // A recording is a different matter. `.inactive` is also what a swipe into
+            // Control Centre, a half-swipe to the app switcher and an incoming-call banner
+            // look like, and ending a field recording for any of those made a long session
+            // nearly impossible to finish. Only going to the background stops it (R-41).
             switch phase {
             case .active: hub.resume()
-            case .inactive, .background: leaveForeground()
+            case .inactive: if !recorder.isRecording { hub.suspend() }
+            case .background: leaveForeground()
             @unknown default: leaveForeground()
             }
         }
@@ -48,15 +54,24 @@ struct RootView: View {
         ) {
             Button("OK") { recorder.failure = nil }
         } message: {
-            Text(recorder.failure ?? "")
+            Text(recorder.failure?.message ?? "")
         }
         .task {
-            recorder.removeOrphanedFiles()
+            recorder.reconcileFiles()
+        }
+        // First run only: what the app measures, what is an estimate, where the data goes
+        // — before the first permission prompt arrives (R-73).
+        .sheet(isPresented: Binding(
+            get: { !settings.hasSeenWelcome },
+            set: { if !$0 { settings.hasSeenWelcome = true } }
+        )) {
+            WelcomeSheet()
         }
     }
 
     /// Recording is foreground-only in v1: leaving the app stops the session and saves it
-    /// with an interrupted note (R-41).
+    /// with an interrupted note (R-41). A recording keeps its sensors through `.inactive`,
+    /// or glancing at Control Centre would leave the session running but recording nothing.
     private func leaveForeground() {
         recorder.stop(interrupted: true)
         hub.suspend()

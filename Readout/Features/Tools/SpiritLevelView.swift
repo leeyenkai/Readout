@@ -7,6 +7,7 @@ struct SpiritLevelView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    @State private var lease: SensorLease?
     @State private var isHeld = false
     @State private var frozen: Vector3?
     @State private var zeroX: Double = 0
@@ -47,8 +48,11 @@ struct SpiritLevelView: View {
                 RecordButton(readings: [.orientation])
             }
         }
-        .onAppear { hub.activate(.orientation, rate: .display) }
-        .onDisappear { hub.deactivate(.orientation, rate: .display) }
+        .onAppear { lease = hub.activate(.orientation, rate: .display) }
+        .onDisappear {
+            hub.release(lease)
+            lease = nil
+        }
         .sensoryFeedback(trigger: isLevel) { _, level in
             // A tap as the level reaches 0° (R-51).
             settings.hapticsEnabled && level ? .impact(weight: .light) : nil

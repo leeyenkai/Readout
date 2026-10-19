@@ -1,3 +1,4 @@
+import Accessibility
 import Charts
 import SwiftUI
 
@@ -17,19 +18,22 @@ struct ReadingChartPanel: View {
     @State private var frozen: [SensorSample] = []
 
     var body: some View {
+        let source = source
+
         VStack(spacing: 12) {
             header
 
             Chart {
                 ForEach(Array(descriptor.channels.enumerated()), id: \.offset) { index, channel in
                     if !hiddenChannels.contains(index) {
-                        ForEach(points(channel: index), id: \.time) { point in
+                        ForEach(points(channel: index, from: source), id: \.time) { point in
                             LineMark(
                                 x: .value("Time", point.time),
                                 y: .value(channel.name, point.value),
                                 series: .value("Channel", channel.name)
                             )
                             .foregroundStyle(channel.axis?.colour ?? Color.accentColor)
+                            .lineStyle(StrokeStyle(lineWidth: 2, dash: channel.axis?.dash ?? []))
                             .interpolationMethod(.monotone)
                         }
                     }
@@ -62,6 +66,9 @@ struct ReadingChartPanel: View {
         .padding(14)
         .glassEffect(.regular, in: .rect(cornerRadius: 24))
         .accessibilityLabel("\(descriptor.name) chart, last \(window.title)")
+        // VoiceOver's Audio Graph: the shape of the trace as a tone that rises and falls,
+        // so a chart is not simply unavailable without sight (R-52).
+        .accessibilityChartDescriptor(self)
     }
 
     private var header: some View {
@@ -120,8 +127,13 @@ struct ReadingChartPanel: View {
         hub.buffer(descriptor.id).samples(in: window.duration)
     }
 
-    private func points(channel: Int) -> [ChartPoint] {
-        let source = isPaused ? frozen : samples
+    /// Rotating and filtering the ring is the expensive part, so it happens once per redraw
+    /// rather than once per channel — three axes used to walk the whole buffer three times.
+    private var source: [SensorSample] {
+        isPaused ? frozen : samples
+    }
+
+    private func points(channel: Int, from source: [SensorSample]) -> [ChartPoint] {
         let unit = descriptor.channels[channel].unit
         let presentation = unit.presentation(units)
         return source.compactMap { sample in
@@ -132,6 +144,12 @@ struct ReadingChartPanel: View {
 
     private var digits: Int {
         descriptor.channels.first?.unit.presentation(units).digits ?? 1
+    }
+
+    /// Seconds before now, which is what an audio graph's x axis should say: "6 seconds ago"
+    /// means something spoken, where an absolute timestamp does not.
+    private func secondsAgo(_ sample: SensorSample, from latest: Date) -> Double {
+        latest.timeIntervalSince(sample.time)
     }
 }
 
@@ -160,5 +178,58 @@ enum ChartWindow: String, CaseIterable, Identifiable {
         case .oneMinute: 60
         case .fiveMinutes: 300
         }
+    }
+}
+
+extension ReadingChartPanel: @MainActor AXChartDescriptorRepresentable {
+    func makeChartDescriptor() -> AXChartDescriptor {
+        let source = source
+        let latest = source.last?.time ?? .now
+        let presentation = descriptor.channels.first?.unit.presentation(units)
+
+        var lowest = Double.greatestFiniteMagnitude
+        var highest = -Double.greatestFiniteMagnitude
+
+        let series = descriptor.channels.enumerated().compactMap { index, channel -> AXDataSeriesDescriptor? in
+            guard !hiddenChannels.contains(index) else { return nil }
+            let conversion = channel.unit.presentation(units)
+            let points = source.compactMap { sample -> AXDataPoint? in
+                guard let value = sample.value(index) else { return nil }
+                let converted = conversion.convert(value)
+                guard converted.isFinite else { return nil }
+                lowest = min(lowest, converted)
+                highest = max(highest, converted)
+                return AXDataPoint(x: -secondsAgo(sample, from: latest), y: converted)
+            }
+            return AXDataSeriesDescriptor(name: channel.name, isContinuous: true, dataPoints: points)
+        }
+
+        // A flat trace, or no trace at all, would be a zero-width range, which the audio
+        // graph cannot sweep through.
+        let floor = lowest <= highest ? lowest : 0
+        let ceiling = highest > floor ? highest : floor + 1
+        let digits = digits
+
+        return AXChartDescriptor(
+            title: "\(descriptor.name), last \(window.title)",
+            summary: descriptor.estimateNote,
+            xAxis: AXNumericDataAxisDescriptor(
+                title: "Seconds ago",
+                range: -window.duration...0,
+                gridlinePositions: []
+            ) { "\(ValueFormatting.decimal(-$0, digits: 1)) seconds ago" },
+            yAxis: AXNumericDataAxisDescriptor(
+                title: descriptor.name,
+                range: floor...ceiling,
+                gridlinePositions: []
+            ) { value in
+                "\(ValueFormatting.decimal(value, digits: digits)) \(presentation?.symbol ?? "")"
+            },
+            series: series
+        )
+    }
+
+    func updateChartDescriptor(_ descriptor: AXChartDescriptor) {
+        // The descriptor is rebuilt from the live buffer each time VoiceOver asks for it.
     }
 }

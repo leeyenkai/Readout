@@ -7,6 +7,7 @@ struct ReadingDetailView: View {
     @Environment(SensorHub.self) private var hub
     @Environment(AppSettings.self) private var settings
     @State private var isRunning = false
+    @State private var lease: SensorLease?
 
     private var descriptor: ReadingDescriptor { ReadingCatalog.descriptor(reading) }
 
@@ -51,7 +52,7 @@ struct ReadingDetailView: View {
         if descriptor.requiresExplicitStart && !isRunning {
             ProximityStartCard(descriptor: descriptor) {
                 isRunning = true
-                hub.activate(reading, rate: .standard)
+                lease = hub.activate(reading, rate: .standard)
             }
         } else {
             LiveValuePanel(descriptor: descriptor, units: settings.displayUnits)
@@ -80,15 +81,15 @@ struct ReadingDetailView: View {
     private func activateIfAllowed() {
         guard hub.availability(reading).isUsable else { return }
         guard !descriptor.requiresExplicitStart else { return }
-        guard !isRunning else { return }
+        guard lease == nil else { return }
         isRunning = true
-        hub.activate(reading, rate: .display)
+        lease = hub.activate(reading, rate: .display)
     }
 
     private func deactivate() {
-        guard isRunning else { return }
         isRunning = false
-        hub.deactivate(reading, rate: descriptor.requiresExplicitStart ? .standard : .display)
+        hub.release(lease)
+        lease = nil
     }
 }
 

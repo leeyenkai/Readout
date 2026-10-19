@@ -8,7 +8,109 @@ requirement IDs in [`docs/SPEC.md`](docs/SPEC.md).
 
 ## [Unreleased]
 
-Nothing yet. Next milestone is **v0.3.0 — Calibration & accessibility** (`docs/SPEC.md` §12).
+Nothing yet. The next milestone is **v1.0 — App Store**, and what it needs is on-device work:
+see [`docs/RELEASE.md`](docs/RELEASE.md) §2.
+
+## [0.3.0] — 2026-10-19
+
+**Release readiness.** The app icon, the defects an audit of the whole source tree
+turned up, the last of the `Partial` requirements, and the scaffolding an App Store submission
+needs. Built and tested in the Simulator; the on-device pass that gates v1.0 is still outstanding
+(`docs/RELEASE.md` §2).
+
+### Added
+
+- **App icon** — a rising trace with a live point, the same mark the tiles draw, as an Icon
+  Composer document (`Readout/AppIcon.icon`). iOS 26 renders the default, dark, clear and
+  tinted appearances from it, so the icon is Liquid Glass rather than a flat image (P-4, R-46).
+- **First-run explainer** — a one-time sheet covering what Readout measures, that sound and
+  light are estimates, and that nothing leaves the phone, shown before the first permission
+  prompt (R-73).
+- **Drag to reorder tiles** — the grid's arrangement is dragged in edit mode and saved on the
+  device, with long-press as the other way in, a Reset order button, and VoiceOver move
+  actions since VoiceOver cannot drag (R-22).
+- **Chart audio graphs** — the live chart and every session chart expose an `AXChartDescriptor`,
+  so VoiceOver can play the shape of a trace. The three axes also carry distinct dash patterns,
+  so they are not told apart by colour alone (R-49, R-52).
+- **Per-model calibration** — `DeviceCalibration` applies a per-iPhone sound offset and light
+  multiplier underneath the user's own, keyed by hardware identifier. **The tables ship empty**:
+  filling one in needs that model and a reference meter, and Settings says plainly that this
+  iPhone has no measured baseline (R-10, R-66, R-72).
+- **Recording limits** — a session stops itself at 100 MB or two hours, whichever comes first,
+  warns in the bar from 80%, and refuses to start without the free space to finish. This
+  settles **Q-4**, open since Draft 1 (R-40).
+- **Crash recovery** — a running session writes a checkpoint beside its CSV files every two
+  seconds, so a recording the app is killed during comes back on the next launch marked
+  interrupted instead of being deleted as an orphan (R-41, R-57).
+- **Privacy manifest** — `PrivacyInfo.xcprivacy` declaring no tracking, no collected data, and
+  the two required-reason APIs the app uses: `UserDefaults` (CA92.1) and free-space checks
+  (E174.1). Required for App Store upload, and it backs the "Data Not Collected" label (R-59).
+- **Release scaffolding** — `docs/RELEASE.md` (what is done, and the on-device pass that still
+  gates v1.0), `LICENSE` (MIT), a GitHub Actions workflow that builds and tests every push,
+  `scripts/screenshots.sh`, and `ITSAppUsesNonExemptEncryption = NO` so export compliance is
+  not asked on every upload.
+- **Unit tests** — 30 more (109 in all), over sensor-lease reference counting, recording recovery and the
+  file-deletion guard, the track writer and its failure path, the streaming CSV reader, tile
+  ordering, non-finite coordinate formatting, and a channel appearing mid-session.
+
+### Fixed
+
+- **Every recording could be deleted on launch.** If SwiftData could not open its store, the
+  app fell back to an empty in-memory one and then ran its tidy-up of files no session points
+  at — which, against an empty store, is every recording on the device. The tidy-up now runs
+  only against a store that really opened, never while recording, and never over a folder
+  still carrying a checkpoint. The Recordings tab says what happened instead (R-57).
+- **The Sound meter could crash on its second visit.** The microphone tap was installed before
+  `AVAudioEngine.start()` but only removed if the engine had started, so a start that threw —
+  another app holding the microphone — stranded it, and the next visit trapped inside AVFAudio
+  installing a second tap on the same bus (R-34).
+- **A phone call froze the sound reading at its last value.** There was no interruption, route
+  change or media-reset handling anywhere in the app: the engine stopped and the 10 Hz timer
+  kept republishing a number that had stopped being true, including into a running recording.
+  The meter now says "Paused — something else is using the microphone" and comes back by
+  itself; a headset change reinstalls the tap against the new format (P-2, R-34).
+- **The microphone and camera kept running after the user left a tool.** Both tool views
+  activated on appear *and* again when the permission card was answered, so the count never
+  reached zero and the capture session — and its privacy indicator — stayed on for the rest of
+  the app's life. Activation is now a lease the hub hands out and the view gives back, which
+  makes an unbalanced claim impossible rather than merely unlikely (R-19, R-64).
+- **Invalid coordinates crashed the app.** `Int(_: Double)` traps on NaN, and Core Location
+  reports an unknown position as NaN, so choosing degrees-minutes-seconds without a fix was
+  fatal. Non-finite values format as "—", as they already did elsewhere (R-8).
+- **Control Centre ended a recording.** `.inactive` was treated like backgrounding, so a swipe
+  into Control Centre, a half-swipe to the app switcher or an incoming-call banner all stopped
+  the session for good. Only a real backgrounding does now (R-41).
+- **Proximity monitoring was switched on and off dozens of times a second.** The grid resolved
+  hardware availability inside its body for all 19 readings on every redraw, which toggled the
+  proximity sensor — the one sensor the app goes out of its way to keep off, because it blanks
+  the screen — and called Core Location's blocking availability check on the main thread.
+  Hardware support is now resolved once, at startup (R-7, R-68).
+- **Saved metadata could overstate what was in the file.** A sample was counted as recorded
+  before its row was written, so a refused write left the session claiming more samples than
+  the CSV held. Rows now count only once they land, dropped rows are reported with a number,
+  and the most serious failure is the one shown — a discarded recording is no longer masked by
+  a milder "may be short" note (R-43, R-45).
+- **Recordings were never flushed to disk.** `FileHandle.synchronize()` is now called before a
+  track's file is closed, so a panic or hard reset cannot lose the tail of a session.
+- **A stale location fix could be recorded before the recording started.** Providers replay
+  their last value so a view is not blank, and a fix can be minutes old; recording it wrote a
+  row with a negative `elapsed_s`. Samples older than the session are dropped (R-45).
+- **Live and recorded statistics disagreed.** On the sample where a reading gained a channel —
+  the pedometer, once you start walking — the live buffer skipped the channels it already knew.
+- **A long session could exhaust memory when opened.** Its CSV was read into one `String` and
+  split; it is now streamed and thinned as it is read, so the cost follows the chart rather
+  than the length of the recording (R-43).
+- Charts rebuilt the whole sample ring once per axis per redraw; recording metadata was
+  JSON-decoded on every list row of every redraw; a non-finite value could break a sparkline.
+
+### Changed
+
+- `SensorHub.activate(_:rate:)` returns a `SensorLease`, given back with `release(_:)`, in
+  place of a matching `deactivate(_:rate:)` call maintained by hand across six views.
+- Recordings are created with explicit file protection
+  (`completeUntilFirstUserAuthentication`) rather than the default (R-57).
+- `SWIFT_TREAT_WARNINGS_AS_ERRORS` and `GCC_TREAT_WARNINGS_AS_ERRORS` are on; the tree builds
+  clean.
 
 ## [0.2.0] — 2026-10-18
 
@@ -119,5 +221,7 @@ not in this release.
   in the Simulator, where every value comes from the synthetic source and the permission gate
   is skipped.
 
-[Unreleased]: https://github.com/leeyenkai/Readout/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/leeyenkai/Readout/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/leeyenkai/Readout/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/leeyenkai/Readout/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/leeyenkai/Readout/releases/tag/v0.1.0

@@ -1,6 +1,6 @@
 # Readout — Specification
 
-**Status:** Draft 2 (living document), reconciled against v0.1.0 · **Target:** v1.0 · **Last updated:** 2026-10-18
+**Status:** Draft 3 (living document), reconciled against v0.3.0 · **Target:** v1.0 · **Last updated:** 2026-10-19
 
 Source of truth for what Readout is and is not. Derived from *Readout — App Spec (Draft 1)*
 (Claude Doc, 2026-10-18). This file supersedes that doc; changes land here first.
@@ -104,7 +104,7 @@ measures light through the camera and shows no air temperature at all.
 | ID | Requirement | Status |
 | --- | --- | --- |
 | R-9 | Read the camera's ISO, shutter time and aperture, compute an exposure value, and convert it to an approximate lux figure. | Done |
-| R-10 | Calibrate the conversion per iPhone model where needed; show the value with "≈" and a "camera estimate" note. | Partial — global offset in Settings; per-model table not yet populated |
+| R-10 | Calibrate the conversion per iPhone model where needed; show the value with "≈" and a "camera estimate" note. | Partial — the mechanism ships in `DeviceCalibration`, keyed by hardware identifier, under the user's own offset. The table is **deliberately empty**: an entry needs that model and a reference meter, and inventing one would make the reading look calibrated when it is not. Settings says this iPhone has no measured baseline (R-72) |
 | R-11 | The camera runs only while the Light detail view or the Light Meter tool is open; the home tile shows the last reading and "Tap to measure". | Done |
 | R-12 | No image is saved or shown on the home grid; only the derived number is kept. | Done |
 
@@ -147,8 +147,9 @@ recording with that reading already selected.
 
 | ID | Requirement | Status |
 | --- | --- | --- |
-| R-22 | Edit mode (long-press or the Edit button) reorders, hides and restores tiles; the layout is saved on the device. | Partial — the Edit button hides, restores and persists; long-press entry and drag-reorder planned |
+| R-22 | Edit mode (long-press or the Edit button) reorders, hides and restores tiles; the layout is saved on the device. | Done — long-press or Edit; drag to reorder, with VoiceOver move actions since VoiceOver cannot drag, and a Reset order button |
 | R-23 | Settings opens as a sheet from the Readings toolbar: units, haptics, sound calibration offset, About and Privacy. | Done |
+| R-73 | A one-time explainer on first launch: what Readout measures, that sound and light are estimates, and that nothing leaves the phone. Shown before the first permission prompt. | Done (v0.3.0) |
 
 ---
 
@@ -210,13 +211,13 @@ real sensors (R-71).
 | R-37 | From the Recordings tab (New Recording) or the Record button on any detail view or tool. | Done |
 | R-38 | Pick readings from a checklist; readings that need a permission ask for it here. | Done — a reading whose permission is refused is named and left out, the rest still record |
 | R-39 | Pick a sample rate: Low (1 Hz), Medium (10 Hz) or High (50 Hz). High applies to motion readings; location, pressure and the pedometer record at their own native rate. | Done — sound, light and the device readings are capped at the chosen rate but cannot be driven faster; 50 Hz from Core Motion needs a phone to confirm |
-| R-40 | While recording, the screen stays awake and a compact recording bar shows elapsed time, sample count and Stop. | Done — the bar is verified; the idle timer cannot be observed in the Simulator |
+| R-40 | While recording, the screen stays awake and a compact recording bar shows elapsed time, sample count and Stop. A session stops itself at 100 MB or two hours, whichever comes first, and warns in the bar from 80% (Q-4). | Done — the bar and the limits are verified; the idle timer cannot be observed in the Simulator |
 
 ### 8.2 Leaving the app
 
 | ID | Requirement | Status |
 | --- | --- | --- |
-| R-41 | Recording is foreground-only in v1. If the user leaves the app, the session stops and is saved with an "interrupted" note. | Done |
+| R-41 | Recording is foreground-only in v1. If the user leaves the app, the session stops and is saved with an "interrupted" note. Glancing at Control Centre, the app switcher or an incoming-call banner is not leaving: the session carries on. | Done — and a session the app is *killed* during is recovered from its checkpoint on the next launch, rather than deleted as an orphan |
 
 ### 8.3 Sessions
 
@@ -254,7 +255,7 @@ and system components wherever they exist.
 | R-49 | Colour | System colours with a single accent; fixed axis colours across the app (x red, y green, z blue); full dark mode and Increase Contrast support. | Done |
 | R-50 | Motion | Gentle, physical animation (bubble, compass dial); all of it reduced or removed under Reduce Motion. | Done |
 | R-51 | Haptics | Level reaching 0°, compass cardinal points, recording start and stop; one switch in Settings turns them off. | Done — recording haptics added in v0.2.0; not feelable in the Simulator |
-| R-52 | Accessibility | Dynamic Type on every screen; VoiceOver reads each value with its unit on request rather than announcing every change; charts expose audio graphs; tools work one-handed. | Partial — Dynamic Type, VoiceOver labels and Reduce Motion done; chart audio graphs planned |
+| R-52 | Accessibility | Dynamic Type on every screen; VoiceOver reads each value with its unit on request rather than announcing every change; charts expose audio graphs; tools work one-handed. | Done — Dynamic Type, VoiceOver labels, Reduce Motion, and `AXChartDescriptor` audio graphs on the live and session charts. The three axes also carry dash patterns, so they are not told apart by colour alone |
 | R-53 | Language | English at launch; units and number formats follow the phone's region. | Done |
 
 ---
@@ -279,6 +280,7 @@ network requests, and the App Store privacy label is "Data Not Collected".
 | R-57 | Recordings stay on the device until the user exports them; deleting the app deletes them. | Done — sessions live in Application Support, and deleting one removes its CSV files with it |
 | R-58 | iOS shows its orange (microphone) and green (camera) indicators while those sensors are in use; the app never hides or works around them. | Done |
 | R-59 | The app makes no network requests; no analytics, no crash reporting SDKs, no remote config. | Done |
+| R-74 | A privacy manifest ships in the bundle: no tracking, no collected data types, and the required-reason APIs the app uses declared — `UserDefaults` (CA92.1) and the free-space check before a recording (E174.1). | Done (v0.3.0) |
 
 ---
 
@@ -309,7 +311,7 @@ Built with Xcode 27 / Swift 6.4 against the iOS 27 SDK; deployment target iOS 26
 
 | ID | Sensor | Note | Status |
 | --- | --- | --- | --- |
-| R-66 | Sound | Audio session in measurement mode to avoid automatic gain; RMS level converted to dBFS, then to an estimated dB with a per-model calibration offset. | Partial — user offset in Settings; per-model table not yet populated |
+| R-66 | Sound | Audio session in measurement mode to avoid automatic gain; RMS level converted to dBFS, then to an estimated dB with a per-model calibration offset. | Partial — the per-model offset is applied from `DeviceCalibration` beneath the user's own, but the table is empty until models are measured (R-72). Interruptions, route changes and a media-services reset are handled: the meter says it is paused rather than holding a stale number |
 | R-67 | Light | Low-resolution capture session read only for exposure metadata; front and rear cameras need separate calibration. | Done |
 | R-68 | Proximity | Turning on proximity monitoring blanks the screen when something covers the sensor, so it runs only inside its detail view, behind a "Start test" button. | Done |
 | R-69 | Heading | Shows the system calibration prompt when heading accuracy is poor. | Done |
@@ -330,8 +332,8 @@ Built with Xcode 27 / Swift 6.4 against the iOS 27 SDK; deployment target iOS 26
 | --- | --- | --- |
 | **v0.1.0 — Readings & tools** | App shell and three tabs; all 19 readings with live providers; tile grid with all four states; detail views with charts, stats, comparisons and explainers; all four instrument tools; Settings; permission flow; mock source for Simulator and previews; 40 unit tests | Shipped — built and run in the Simulator; **not yet verified on physical hardware** |
 | **v0.2.0 — Recording & export** | §8 in full: recording sessions, sample rates, recording bar, session list and detail, SwiftData metadata, CSV writing and share-sheet export, Record buttons wired up (R-6, R-29, R-36–45, R-51, R-57, R-61) | Shipped — recorded, listed, charted and exported in the Simulator against the synthetic source; **not yet verified on physical hardware** |
-| **v0.3.0 — Calibration & accessibility** | Per-model sound and light calibration tables (R-10, R-66), chart audio graphs (R-52), drag-to-reorder tiles (R-22) | Next |
-| **v1.0 — App Store** | App icon, screenshots, App Store privacy label ("Data Not Collected"), on-device testing of every reading, TestFlight pass | Planned |
+| **v0.3.0 — Release readiness** | App icon as an Icon Composer document; the defects a full-source audit turned up, including one that could delete every recording and one that could crash the Sound meter; drag-to-reorder (R-22), chart audio graphs (R-52), the calibration mechanism (R-10, R-66), first-run explainer (R-73); recording limits (Q-4) and crash recovery; privacy manifest (R-74), licence, CI and `docs/RELEASE.md` | Shipped — built and tested in the Simulator; **not yet verified on physical hardware** |
+| **v1.0 — App Store** | What is left is what a build machine cannot do: on-device verification of every reading, the audio-interruption and 50 Hz checks, calibration against a reference meter, screenshots from a real phone, a signing team, and a TestFlight pass. The checklist is [`docs/RELEASE.md`](RELEASE.md) §2 | Planned |
 
 ---
 
@@ -345,11 +347,11 @@ provisional choice v0.1.0 ships with; none of them is settled.
 | Q-1 | Home grid default: show all 19 readings, or a starter set of about 8 with the rest under Edit? | All 19, grouped |
 | Q-2 | Compass and level tiles: open the detail view or jump straight to the tool? | Detail view; tools live in their own tab |
 | Q-3 | Leaving the app mid-recording: stop and save, or pause and resume on return? | Stop and save with an "interrupted" note |
-| Q-4 | Maximum recording length and a storage cap per session? | Undecided — v0.2.0 ships no cap; a three-axis reading at 50 Hz writes about 200 kB a minute |
+| Q-4 | Maximum recording length and a storage cap per session? | **Settled in v0.3.0:** a session stops itself at 100 MB or two hours, whichever comes first, warns in the bar from 80%, and will not start without the free space to finish |
 | Q-5 | Sound meter calibration: fixed per-model offsets, user calibration against a reference meter, or both? | User offset ships in v0.1.0; per-model table in v0.3.0 |
 | Q-6 | Recordings: device-only, or iCloud sync later? | Device-only |
 | Q-7 | Temperature in a later version: nearby weather (labelled), Bluetooth thermometers, or neither? | Neither in v1 |
 | Q-8 | Widgets, Control Centre controls or Shortcuts actions ("What's the air pressure?") in v1.1? | Undecided |
 | Q-9 | iPad or Apple Watch later, given their different sensor sets? | Undecided |
-| Q-10 | Name check: is "Readout" available on the App Store, and what does the icon look like? | Open |
+| Q-10 | Name check: is "Readout" available on the App Store, and what does the icon look like? | **Icon settled in v0.3.0** — a rising trace with a live point, the mark the tiles already draw, as an Icon Composer document so iOS renders all four appearances. The App Store name check is still open and needs an App Store Connect account |
 | Q-11 | Re-check the latest iOS SDK before building, in case Apple has opened up light or temperature data. | Checked 2026-10-18 against the iOS 27 SDK: still no ambient-light or temperature API |
