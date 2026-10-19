@@ -21,7 +21,11 @@ jobs:
 
       # The runner image decides which Xcodes it ships, and the path is not stable
       # between images, so the newest one installed is selected rather than hard-coded.
-      # Readout needs Xcode 27 for the iOS 26 deployment target and the Liquid Glass APIs.
+      #
+      # Readout is developed on Xcode 27 but only needs the iOS 26 SDK: the deployment
+      # target is iOS 26.0 and Liquid Glass is an iOS 26 API. GitHub's macos-26 image
+      # currently tops out at Xcode 26.6, so the floor here is 26 — if a later change
+      # starts needing the iOS 27 SDK, this is where it will say so.
       - name: Select the newest Xcode
         run: |
           set -euo pipefail
@@ -31,8 +35,8 @@ jobs:
           echo "Selecting $latest"
           sudo xcode-select -switch "$latest"
           major=$(xcodebuild -version | head -1 | sed -E 's/Xcode ([0-9]+).*/\1/')
-          if [ "$major" -lt 27 ]; then
-            echo "::error::Readout needs Xcode 27 or later; this runner's newest is $major."
+          if [ "$major" -lt 26 ]; then
+            echo "::error::Readout needs Xcode 26 or later; this runner's newest is $major."
             exit 1
           fi
 

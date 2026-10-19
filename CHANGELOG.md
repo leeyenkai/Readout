@@ -16,9 +16,10 @@ The next milestone is **v1.0 — App Store**, and what it needs is on-device wor
 - **CI could not select a toolchain.** The workflow pointed at `/Applications/Xcode_27.app`,
   which the runner image does not have, and then picked the newest iPhone device type
   outright — which `simctl create` rejects when the newest runtime cannot run it. It now
-  selects the newest installed Xcode (failing with a clear message if it is older than 27)
-  and takes the device from the chosen runtime's own supported list, through
-  `scripts/pick-simulator.py`.
+  selects the newest installed Xcode and takes the device from the chosen runtime's own
+  supported list, through `scripts/pick-simulator.py`. The toolchain floor is Xcode 26, not
+  the 27 the app is developed on: GitHub's `macos-26` image tops out at Xcode 26.6, and
+  Readout only needs the iOS 26 SDK.
 
 ## [0.3.0] — 2026-10-19
 
