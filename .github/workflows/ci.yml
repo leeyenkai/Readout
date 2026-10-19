@@ -19,21 +19,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode 27
-        run: sudo xcode-select -switch /Applications/Xcode_27.app
+      # The runner image decides which Xcodes it ships, and the path is not stable
+      # between images, so the newest one installed is selected rather than hard-coded.
+      # Readout needs Xcode 27 for the iOS 26 deployment target and the Liquid Glass APIs.
+      - name: Select the newest Xcode
+        run: |
+          set -euo pipefail
+          echo "Installed:"
+          ls -d /Applications/Xcode*.app
+          latest=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "Selecting $latest"
+          sudo xcode-select -switch "$latest"
+          major=$(xcodebuild -version | head -1 | sed -E 's/Xcode ([0-9]+).*/\1/')
+          if [ "$major" -lt 27 ]; then
+            echo "::error::Readout needs Xcode 27 or later; this runner's newest is $major."
+            exit 1
+          fi
 
       - name: Show toolchain
         run: |
           xcodebuild -version
           swift --version
+          xcrun simctl list runtimes
 
       # Named so the destination below is stable whatever the runner image ships with.
       - name: Create the simulator
         run: |
-          runtime=$(xcrun simctl list runtimes --json \
-            | python3 -c "import json,sys; rts=[r for r in json.load(sys.stdin)['runtimes'] if r['isAvailable'] and r['identifier'].startswith('com.apple.CoreSimulator.SimRuntime.iOS')]; print(sorted(rts, key=lambda r: r['version'])[-1]['identifier'])")
-          echo "Using $runtime"
-          xcrun simctl create "Readout CI iPhone" "iPhone 17 Pro" "$runtime"
+          set -euo pipefail
+          read -r runtime device < <(xcrun simctl list runtimes --json | scripts/pick-simulator.py)
+          echo "Using $device on $runtime"
+          xcrun simctl create "Readout CI iPhone" "$device" "$runtime"
 
       - name: Test
         run: |
