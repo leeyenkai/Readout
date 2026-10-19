@@ -27,7 +27,8 @@ for the milestones.
 ## Requirements
 
 - iOS 26.0 or later, iPhone only
-- Xcode 27 (iOS 27 SDK), Swift 6.4 toolchain, Swift 6 language mode
+- Xcode 26 or later — developed on Xcode 27, and CI builds and tests it on 26.6
+- Swift 6 language mode; nothing here needs the iOS 27 SDK
 - No third-party dependencies
 
 ## Build and run

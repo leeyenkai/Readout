@@ -16,10 +16,10 @@ stable requirement IDs (`R-nn`). Read the relevant section before implementing a
 
 | | |
 | --- | --- |
-| Language | Swift 6.4, Swift 6 language mode |
+| Language | Swift 6 language mode (built with the 6.4 toolchain; CI uses 6.3.3) |
 | UI | SwiftUI + Observation (`@Observable`), Swift Charts |
 | Min OS | iOS 26.0 (`IPHONEOS_DEPLOYMENT_TARGET`) |
-| Built with | Xcode 27, iOS 27 SDK |
+| Built with | Xcode 27 locally. **Xcode 26 or later is enough** — the deployment target is iOS 26.0 and Liquid Glass is an iOS 26 API, so nothing needs the iOS 27 SDK. CI proves it on 26.6 |
 | Dependencies | **none** — no SPM packages, no CocoaPods, no Carthage |
 
 Adding a third-party dependency needs a decision recorded in `docs/SPEC.md` first.
