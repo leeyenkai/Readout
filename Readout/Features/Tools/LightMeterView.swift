@@ -110,13 +110,25 @@ struct LightMeterView: View {
         }
         .frame(height: 220)
         .clipShape(.rect(cornerRadius: 22))
+        .overlay {
+            // An empty black panel looks broken. It is what the Simulator shows, which has
+            // no camera to meter with — the reading beside it comes from the synthetic
+            // source there (R-71).
+            if !hub.light.captureSession.isRunning {
+                Label("No camera preview on this device", systemImage: "camera.metering.unknown")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
         .overlay(alignment: .bottomLeading) {
-            Text("Tap to meter a spot")
-                .font(.caption2)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .glassEffect(.regular, in: .capsule)
-                .padding(10)
+            if hub.light.captureSession.isRunning {
+                Text("Tap to meter a spot")
+                    .font(.caption2)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .glassEffect(.regular, in: .capsule)
+                    .padding(10)
+            }
         }
         .accessibilityLabel("Camera preview. Tap to meter a spot.")
     }

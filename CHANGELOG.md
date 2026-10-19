@@ -11,6 +11,12 @@ requirement IDs in [`docs/SPEC.md`](docs/SPEC.md).
 The next milestone is **v1.0 — App Store**, and what it needs is on-device work: see
 [`docs/RELEASE.md`](docs/RELEASE.md) §2.
 
+### Changed
+
+- **The Light meter's preview says when there is nothing to show.** A device with no camera —
+  the Simulator — drew an empty black panel beside a working reading, which looks like a fault
+  rather than the absence of a camera (R-35, R-71).
+
 ### Fixed
 
 - **A second calibration taken straight after the first corrected for a figure that was never
