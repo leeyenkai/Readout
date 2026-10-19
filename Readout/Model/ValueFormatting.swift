@@ -40,13 +40,28 @@ struct ValueFormatting {
 
     /// Latitude and longitude, decimal or sexagesimal (R-8).
     static func coordinate(latitude: Double, longitude: Double, format: CoordinateFormat) -> String {
+        let pair = coordinatePair(latitude: latitude, longitude: longitude, format: format)
+        return "\(pair.latitude)  \(pair.longitude)"
+    }
+
+    /// The same pair kept apart, for a place too narrow to hold both on one line — a tile is
+    /// half the width of the screen, and a coordinate truncated mid-digit says nothing.
+    static func coordinatePair(
+        latitude: Double,
+        longitude: Double,
+        format: CoordinateFormat
+    ) -> (latitude: String, longitude: String) {
         switch format {
         case .decimal:
-            let lat = decimal(abs(latitude), digits: 5)
-            let lon = decimal(abs(longitude), digits: 5)
-            return "\(lat)° \(latitude < 0 ? "S" : "N")  \(lon)° \(longitude < 0 ? "W" : "E")"
+            return (
+                "\(decimal(abs(latitude), digits: 5))° \(latitude < 0 ? "S" : "N")",
+                "\(decimal(abs(longitude), digits: 5))° \(longitude < 0 ? "W" : "E")"
+            )
         case .degreesMinutesSeconds:
-            return "\(sexagesimal(latitude, positive: "N", negative: "S"))  \(sexagesimal(longitude, positive: "E", negative: "W"))"
+            return (
+                sexagesimal(latitude, positive: "N", negative: "S"),
+                sexagesimal(longitude, positive: "E", negative: "W")
+            )
         }
     }
 
@@ -61,6 +76,17 @@ struct ValueFormatting {
         let minutes = Int(minutesValue)
         let seconds = (minutesValue - Double(minutes)) * 60
         return "\(degrees)° \(minutes)′ \(decimal(seconds, digits: 1))″ \(value < 0 ? negative : positive)"
+    }
+
+    /// A point on a live chart's time axis, as the distance back from now: "now", "−5 s",
+    /// "−2 min". A wall-clock time means nothing on a ten-second chart (R-25).
+    static func relativeTime(secondsAgo: Double) -> String {
+        guard secondsAgo.isFinite else { return "" }
+        let rounded = secondsAgo.rounded()
+        guard rounded >= 1 else { return "now" }
+        guard rounded >= 60 else { return "−\(Int(rounded)) s" }
+        let minutes = (rounded / 60).rounded()
+        return "−\(Int(minutes)) min"
     }
 
     /// The compass point a heading falls in, for example 247° → "WSW".

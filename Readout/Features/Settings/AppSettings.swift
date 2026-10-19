@@ -63,6 +63,16 @@ final class AppSettings {
         )
     }
 
+    /// Whether the user has corrected either estimate, so Settings can offer to clear it.
+    var hasCalibration: Bool {
+        soundCalibrationOffset != 0 || lightCalibration != 1
+    }
+
+    func resetCalibration() {
+        soundCalibrationOffset = 0
+        lightCalibration = 1
+    }
+
     func isHidden(_ reading: ReadingID) -> Bool {
         hiddenReadings.contains(reading)
     }

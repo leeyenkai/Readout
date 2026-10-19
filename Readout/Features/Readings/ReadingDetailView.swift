@@ -17,7 +17,7 @@ struct ReadingDetailView: View {
                 switch hub.availability(reading) {
                 case .needsPermission(let permission):
                     PermissionCard(permission: permission, isDenied: false) {
-                        await hub.permissions.request(permission)
+                        await hub.requestPermission(permission)
                         activateIfAllowed()
                     }
                 case .denied(let permission):
@@ -104,7 +104,15 @@ private struct LiveValuePanel: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            if let sample = hub.sample(descriptor.id) {
+            // A reading that has stopped arriving says so rather than holding the last
+            // number on screen, which stopped being true the moment the sensor stopped (P-2).
+            if let stalled = hub.stalledReason(descriptor.id) {
+                Label(stalled, systemImage: "pause.circle")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(height: 60)
+            } else if let sample = hub.sample(descriptor.id) {
                 values(for: sample)
                 footnote(for: sample)
             } else {

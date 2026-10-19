@@ -8,6 +8,7 @@ struct SoundMeterView: View {
     @Environment(AppSettings.self) private var settings
 
     @State private var lease: SensorLease?
+    @State private var isCalibrating = false
 
     private let descriptor = ReadingCatalog.descriptor(.soundLevel)
 
@@ -17,7 +18,7 @@ struct SoundMeterView: View {
                 switch hub.availability(.soundLevel) {
                 case .needsPermission(let permission):
                     PermissionCard(permission: permission, isDenied: false) {
-                        await hub.permissions.request(permission)
+                        await hub.requestPermission(permission)
                     }
                 case .denied(let permission):
                     PermissionCard(permission: permission, isDenied: true) {
@@ -56,6 +57,9 @@ struct SoundMeterView: View {
             lease = nil
         }
         .onChange(of: hub.availability(.soundLevel)) { _, _ in syncActivation() }
+        .sheet(isPresented: $isCalibrating) {
+            CalibrationSheet(target: .sound)
+        }
     }
 
     /// Starts the microphone once the permission allows it, and never more than once. The card
@@ -71,9 +75,9 @@ struct SoundMeterView: View {
 
     /// Nothing is shown while another app holds the microphone: the last number stops being
     /// true the moment the engine stops, and a frozen reading is worse than none (P-2).
-    private var isInterrupted: Bool { hub.audio.status == .interrupted }
+    private var interruption: String? { hub.stalledReason(.soundLevel) }
 
-    private var current: Double? { isInterrupted ? nil : hub.sample(.soundLevel)?.value(0) }
+    private var current: Double? { interruption == nil ? hub.sample(.soundLevel)?.value(0) : nil }
 
     private var level: some View {
         VStack(spacing: 6) {
@@ -93,8 +97,8 @@ struct SoundMeterView: View {
                     .foregroundStyle(.secondary)
             }
 
-            if isInterrupted {
-                Label("Paused — something else is using the microphone", systemImage: "pause.circle")
+            if let interruption {
+                Label(interruption, systemImage: "pause.circle")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else if isLoud {
@@ -109,50 +113,59 @@ struct SoundMeterView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             current.map { "About \(ValueFormatting.decimal($0, digits: 0)) decibels" }
-                ?? (isInterrupted ? "Paused. Something else is using the microphone." : "No reading")
+                ?? (interruption.map { "Paused. \($0)" } ?? "No reading")
         )
     }
 
+    /// Peak, average and quietest all come from the same history the chart draws, so Reset
+    /// clears the three of them together and none can disagree with the others.
     private var summary: some View {
         HStack(spacing: 0) {
-            statistic("Peak", hub.audio.peak)
-            if let stats = hub.buffer(.soundLevel).stats(channel: 0) {
-                statistic("Average", stats.mean)
-                statistic("Quietest", stats.minimum)
-            }
+            let stats = hub.buffer(.soundLevel).stats(channel: 0)
+            statistic("Peak", stats?.maximum)
+            statistic("Average", stats?.mean)
+            statistic("Quietest", stats?.minimum)
         }
         .padding(.vertical, 14)
         .glassEffect(.regular, in: .rect(cornerRadius: 22))
     }
 
-    private func statistic(_ label: String, _ value: Double) -> some View {
-        VStack(spacing: 2) {
+    private func statistic(_ label: String, _ value: Double?) -> some View {
+        let text = value.map { ValueFormatting.decimal($0, digits: 0) } ?? "—"
+        return VStack(spacing: 2) {
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
-            Text(ValueFormatting.decimal(value, digits: 0))
+            Text(text)
                 .font(.title3.weight(.medium))
                 .monospacedDigit()
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(label) \(ValueFormatting.decimal(value, digits: 0)) decibels")
+        .accessibilityLabel(value == nil ? "\(label), no reading yet" : "\(label) \(text) decibels")
     }
 
+    /// A wrapping row, so a third control and large Dynamic Type do not push each other off
+    /// the screen (R-52).
     private var controls: some View {
-        HStack(spacing: 10) {
+        FlowRow(spacing: 10) {
             Button(settings.soundRespondsFast ? "Fast" : "Slow") {
                 settings.soundRespondsFast.toggle()
             }
             .buttonStyle(.glass)
+            .accessibilityLabel(settings.soundRespondsFast ? "Fast response. Tap for slow." : "Slow response. Tap for fast.")
 
             Button("Reset") {
                 hub.resetStats(.soundLevel)
                 hub.clearHistory(.soundLevel)
             }
             .buttonStyle(.glass)
+
+            Button("Calibrate") { isCalibrating = true }
+                .buttonStyle(.glass)
         }
         .font(.subheadline.weight(.medium))
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var isLoud: Bool {

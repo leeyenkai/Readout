@@ -198,6 +198,9 @@ private struct TrackPanel: View {
                 }
             }
         }
+        // The same scale the live chart uses: fitted to the samples rather than reaching down
+        // to zero, so a recording of air pressure is a trace and not a straight line (R-43).
+        .chartYScale(domain: yDomain)
         .chartXAxis {
             AxisMarks(values: .automatic(desiredCount: 4)) { value in
                 AxisGridLine()
@@ -224,6 +227,25 @@ private struct TrackPanel: View {
         .chartLegend(.hidden)
         .frame(height: 150)
         .accessibilityLabel("\(descriptor.name) over the whole recording")
+    }
+
+    /// The band the recorded samples occupy, with a little room above and below.
+    private var yDomain: ClosedRange<Double> {
+        var lowest = Double.greatestFiniteMagnitude
+        var highest = -Double.greatestFiniteMagnitude
+        for index in descriptor.channels.indices {
+            let presentation = descriptor.channels[index].unit.presentation(units)
+            for point in series.points(channel: index) {
+                let value = presentation.convert(point.value)
+                guard value.isFinite else { continue }
+                lowest = min(lowest, value)
+                highest = max(highest, value)
+            }
+        }
+        guard lowest <= highest else { return -1...1 }
+        let span = highest - lowest
+        let padding = span > 0 ? span * 0.15 : max(abs(highest) * 0.01, 0.5)
+        return (lowest - padding)...(highest + padding)
     }
 
     private var digits: Int {

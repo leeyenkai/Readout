@@ -155,9 +155,10 @@ private struct SurfaceLevel: View {
         GeometryReader { geometry in
             let size = min(geometry.size.width, geometry.size.height)
             let radius = size / 2
-            // 15° of tilt moves the bubble to the edge of the circle.
-            let offsetX = (angles.x / 15).clamped(to: -1...1) * (radius - 26)
-            let offsetY = (angles.y / 15).clamped(to: -1...1) * (radius - 26)
+            // 15° of tilt puts the bubble on the rim, and never past it (R-32).
+            let position = LevelMaths.bubblePosition(x: angles.x, y: angles.y)
+            let offsetX = position.x * (radius - 26)
+            let offsetY = position.y * (radius - 26)
 
             ZStack {
                 Circle()

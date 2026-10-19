@@ -1,0 +1,37 @@
+name: Proposal
+description: A reading, an instrument or a change to how Readout works.
+labels: ["proposal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Scope lives in [`docs/SPEC.md`](../blob/main/docs/SPEC.md): §2.2 lists what v1
+        deliberately leaves out and §13 the questions still open. Work outside the current
+        milestone belongs here rather than in a commit.
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you would like Readout to do
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it is worth doing
+      description: What it would let somebody find out that they cannot today.
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: Where the data would come from
+      description: |
+        Which iOS framework, and whether it needs a permission Readout does not already ask
+        for. Readout makes no network requests at all, so anything that needs one is out.
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Checked against the specification
+      options:
+        - label: This is not in §2.2's list of things v1 leaves out, or I have said why it should move.
+          required: true

@@ -11,6 +11,10 @@ struct ReadingTile: View {
     let units: DisplayUnits
     var isDimmed = false
 
+    /// The card grows with the text, so a long name at an accessibility size has somewhere
+    /// to go instead of being cut in half (R-52).
+    @ScaledMetric(relativeTo: .footnote) private var height: CGFloat = 118
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
@@ -20,7 +24,7 @@ struct ReadingTile: View {
                 Text(descriptor.name)
                     .font(.footnote.weight(.medium))
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(2)
                 Spacer(minLength: 0)
             }
 
@@ -32,7 +36,7 @@ struct ReadingTile: View {
                 .opacity(trail.count > 1 ? 1 : 0)
         }
         .padding(12)
-        .frame(height: 118, alignment: .top)
+        .frame(height: height, alignment: .top)
         .glassEffect(.regular, in: .rect(cornerRadius: 20))
         .opacity(isDimmed ? 0.45 : 1)
         .accessibilityElement(children: .combine)
@@ -50,7 +54,9 @@ struct ReadingTile: View {
         case .unavailable:
             TileState(symbol: "slash.circle", text: "Not on this iPhone")
         case .live, .ready:
-            if let sample, let formatted = formattedValue(sample) {
+            if case .coordinates = descriptor.tile, let sample, sample.values.count >= 2 {
+                coordinates(sample)
+            } else if let sample, let formatted = formattedValue(sample) {
                 HStack(alignment: .firstTextBaseline, spacing: 3) {
                     Text(formatted.text)
                         .font(.system(.title2, design: .rounded, weight: .semibold))
@@ -74,6 +80,24 @@ struct ReadingTile: View {
         }
     }
 
+    /// Latitude over longitude. The pair does not fit a half-width tile on one line, and a
+    /// coordinate cut off mid-digit tells the reader nothing (R-16).
+    private func coordinates(_ sample: SensorSample) -> some View {
+        let pair = ValueFormatting.coordinatePair(
+            latitude: sample.values[0],
+            longitude: sample.values[1],
+            format: units.coordinates
+        )
+        return VStack(alignment: .leading, spacing: 1) {
+            Text(pair.latitude)
+            Text(pair.longitude)
+        }
+        .font(.system(.subheadline, design: .rounded, weight: .semibold))
+        .monospacedDigit()
+        .lineLimit(1)
+        .minimumScaleFactor(0.6)
+    }
+
     /// The tile's single value: a channel, the magnitude of a three-axis reading, a discrete
     /// state, or a coordinate pair (R-17).
     private func formattedValue(_ sample: SensorSample) -> ValueFormatting.Formatted? {
@@ -87,7 +111,7 @@ struct ReadingTile: View {
                 text: ValueFormatting.coordinate(
                     latitude: sample.values[0],
                     longitude: sample.values[1],
-                    format: .decimal
+                    format: units.coordinates
                 ),
                 symbol: ""
             )

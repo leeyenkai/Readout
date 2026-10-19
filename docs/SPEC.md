@@ -1,13 +1,13 @@
 # Readout — Specification
 
-**Status:** Draft 3 (living document), reconciled against v0.3.0 · **Target:** v1.0 · **Last updated:** 2026-10-19
+**Status:** Draft 3 (living document), reconciled against v0.4.0 · **Target:** v1.0 · **Last updated:** 2026-10-19
 
 Source of truth for what Readout is and is not. Derived from *Readout — App Spec (Draft 1)*
 (Claude Doc, 2026-10-18). This file supersedes that doc; changes land here first.
 
 Requirements carry stable IDs (`R-nn`) so code, commits and the changelog can cite them.
 Requirement status is one of **Done**, **Partial**, **Planned** or **Deferred**, and reflects
-the milestone table in [§11](#11-milestones).
+the milestone table in [§12](#12-milestones).
 
 ---
 
@@ -40,7 +40,7 @@ foreground recording with CSV export.
 
 | ID | Requirement | Status |
 | --- | --- | --- |
-| R-1 | iPhone, portrait-first | Done |
+| R-1 | iPhone, portrait-first | Done — portrait only from v0.4.0: every screen is laid out for it, and rotating the interface out from under a levelling measurement helps nobody |
 | R-2 | Live readings for Motion, Environment, Location, and Device & activity | Done |
 | R-3 | Light from a camera-based light meter; device thermal state as the only heat-related reading | Done |
 | R-4 | A detail view per reading: live chart, min/max/average, explainer and everyday comparisons | Done |
@@ -104,7 +104,7 @@ measures light through the camera and shows no air temperature at all.
 | ID | Requirement | Status |
 | --- | --- | --- |
 | R-9 | Read the camera's ISO, shutter time and aperture, compute an exposure value, and convert it to an approximate lux figure. | Done |
-| R-10 | Calibrate the conversion per iPhone model where needed; show the value with "≈" and a "camera estimate" note. | Partial — the mechanism ships in `DeviceCalibration`, keyed by hardware identifier, under the user's own offset. The table is **deliberately empty**: an entry needs that model and a reference meter, and inventing one would make the reading look calibrated when it is not. Settings says this iPhone has no measured baseline (R-72) |
+| R-10 | Calibrate the conversion per iPhone model where needed; show the value with "≈" and a "camera estimate" note. | Partial — the mechanism ships in `DeviceCalibration`, keyed by hardware identifier, under the user's own correction, and v0.4.0 adds the guided flow that works that correction out (R-75). The per-model table is **deliberately empty**: an entry needs that model and a reference meter, and inventing one would make the reading look calibrated when it is not. Settings names the model identifier and says plainly that it has no measured baseline (R-72) |
 | R-11 | The camera runs only while the Light detail view or the Light Meter tool is open; the home tile shows the last reading and "Tap to measure". | Done |
 | R-12 | No image is saved or shown on the home grid; only the derived number is kept. | Done |
 
@@ -116,7 +116,16 @@ measures light through the camera and shows no air temperature at all.
 | R-14 | Its explainer says plainly that iPhones don't let apps read air temperature, and that this reading is about the phone, not the room. | Done |
 
 Weather data and Bluetooth thermometers were considered and left out of v1; see
-[§12 Open questions](#12-open-questions).
+[§13 Open questions](#13-open-questions).
+
+### 4.3 Calibrating the two estimates
+
+Neither sound nor light is a measurement, and no iOS API makes one of them into it. What
+Readout can do is let somebody who owns a proper meter close the gap on their own phone.
+
+| ID | Requirement | Status |
+| --- | --- | --- |
+| R-75 | A user can calibrate either estimate against a reference meter: Readout averages its own figure over a few seconds, takes the meter's, and keeps the difference as a sound offset or a light multiplier. A correction larger than the estimate's own spread is refused rather than applied, because it means the two meters were not measuring the same thing. | Done (v0.4.0) — in the Sound meter, the Light meter and Settings; the arithmetic is pure and covered by tests (R-10, R-66, Q-5) |
 
 ---
 
@@ -148,7 +157,7 @@ recording with that reading already selected.
 | ID | Requirement | Status |
 | --- | --- | --- |
 | R-22 | Edit mode (long-press or the Edit button) reorders, hides and restores tiles; the layout is saved on the device. | Done — long-press or Edit; drag to reorder, with VoiceOver move actions since VoiceOver cannot drag, and a Reset order button |
-| R-23 | Settings opens as a sheet from the Readings toolbar: units, haptics, sound calibration offset, About and Privacy. | Done |
+| R-23 | Settings opens as a sheet from the Readings toolbar: units, haptics, sound calibration offset, About and Privacy. | Done — calibration can be nudged by hand or worked out against a reference meter (R-75), and About can bring the first-run explainer back |
 | R-73 | A one-time explainer on first launch: what Readout measures, that sound and light are estimates, and that nothing leaves the phone. Shown before the first permission prompt. | Done (v0.3.0) |
 
 ---
@@ -163,7 +172,7 @@ stats, and a short explainer with everyday comparisons.
 | ID | Requirement | Status |
 | --- | --- | --- |
 | R-24 | Live value in large type; three-axis readings show x, y and z side by side, each in its axis colour. | Done |
-| R-25 | Live line chart (Swift Charts) with a 10 s window by default, switchable to 1 min and 5 min; pause and resume; tap an axis to hide it. | Done |
+| R-25 | Live line chart (Swift Charts) with a 10 s window by default, switchable to 1 min and 5 min; pause and resume; tap an axis to hide it. | Done — the window is fixed to the one chosen and labelled as a distance back from now, and the vertical scale fits the samples on screen rather than reaching down to zero |
 | R-26 | Stats since the view opened: minimum, maximum, average, with a Reset button. | Done |
 | R-27 | Comparison scale: the current value placed on a bar of everyday references. | Done |
 | R-28 | Explainer card: what the sensor is, what it measures, how precise it is, and one "Try this" idea. | Done |
@@ -224,7 +233,7 @@ real sensors (R-71).
 | ID | Requirement | Status |
 | --- | --- | --- |
 | R-42 | The Recordings tab lists sessions newest first: auto-generated name (date, time, readings), duration and size. | Done |
-| R-43 | A session view shows a chart and min/max/average per reading, with Rename, Delete and Export. | Done — the chart is read back from the session's own CSV |
+| R-43 | A session view shows a chart and min/max/average per reading, with Rename, Delete and Export. | Done — the chart is read back from the session's own CSV, and scaled to it |
 
 ### 8.4 CSV format
 
@@ -311,7 +320,7 @@ Built with Xcode 27 / Swift 6.4 against the iOS 27 SDK; deployment target iOS 26
 
 | ID | Sensor | Note | Status |
 | --- | --- | --- | --- |
-| R-66 | Sound | Audio session in measurement mode to avoid automatic gain; RMS level converted to dBFS, then to an estimated dB with a per-model calibration offset. | Partial — the per-model offset is applied from `DeviceCalibration` beneath the user's own, but the table is empty until models are measured (R-72). Interruptions, route changes and a media-services reset are handled: the meter says it is paused rather than holding a stale number |
+| R-66 | Sound | Audio session in measurement mode to avoid automatic gain; RMS level converted to dBFS, then to an estimated dB with a per-model calibration offset. | Partial — the per-model offset is applied from `DeviceCalibration` beneath the user's own, which the guided calibration can now work out (R-75), but the table is empty until models are measured (R-72). Interruptions, route changes and a media-services reset are handled: the meter and the detail view both say the reading is paused rather than holding a stale number |
 | R-67 | Light | Low-resolution capture session read only for exposure metadata; front and rear cameras need separate calibration. | Done |
 | R-68 | Proximity | Turning on proximity monitoring blanks the screen when something covers the sensor, so it runs only inside its detail view, behind a "Start test" button. | Done |
 | R-69 | Heading | Shows the system calibration prompt when heading accuracy is poor. | Done |
@@ -321,7 +330,7 @@ Built with Xcode 27 / Swift 6.4 against the iOS 27 SDK; deployment target iOS 26
 
 | ID | Requirement | Status |
 | --- | --- | --- |
-| R-71 | Most sensors don't work in the Simulator, so the sensor service sits behind a protocol with a mock that replays synthetic data for previews and UI tests. | Done — the Simulator also skips the permission gate, since there is no real sensor to protect and no way to answer a Motion & Fitness prompt |
+| R-71 | Most sensors don't work in the Simulator, so the sensor service sits behind a protocol with a mock that replays synthetic data for previews and UI tests. | Done — from v0.4.0 **every** reading comes from the mock there, not only the ones a framework admits to lacking: Core Location reports itself available and then never produces a fix, which left the location group waiting for ever. The Simulator also skips the permission gate, since there is no real sensor to protect and no way to answer a Motion & Fitness prompt |
 | R-72 | Calibration offsets for sound and light need checking on real devices against a reference meter. | Open — needs hardware |
 
 ---
@@ -333,6 +342,7 @@ Built with Xcode 27 / Swift 6.4 against the iOS 27 SDK; deployment target iOS 26
 | **v0.1.0 — Readings & tools** | App shell and three tabs; all 19 readings with live providers; tile grid with all four states; detail views with charts, stats, comparisons and explainers; all four instrument tools; Settings; permission flow; mock source for Simulator and previews; 40 unit tests | Shipped — built and run in the Simulator; **not yet verified on physical hardware** |
 | **v0.2.0 — Recording & export** | §8 in full: recording sessions, sample rates, recording bar, session list and detail, SwiftData metadata, CSV writing and share-sheet export, Record buttons wired up (R-6, R-29, R-36–45, R-51, R-57, R-61) | Shipped — recorded, listed, charted and exported in the Simulator against the synthetic source; **not yet verified on physical hardware** |
 | **v0.3.0 — Release readiness** | App icon as an Icon Composer document; the defects a full-source audit turned up, including one that could delete every recording and one that could crash the Sound meter; drag-to-reorder (R-22), chart audio graphs (R-52), the calibration mechanism (R-10, R-66), first-run explainer (R-73); recording limits (Q-4) and crash recovery; privacy manifest (R-74), licence, CI and `docs/RELEASE.md` | Shipped — built and tested in the Simulator; **not yet verified on physical hardware** |
+| **v0.4.0 — Honest estimates & polish** | Guided calibration against a reference meter (R-75); charts scaled to their data with a labelled time axis (R-25, R-43); portrait only (R-1); tiles that grow with Dynamic Type (R-52); the empty-grid state (R-22); and the defects a lifecycle pass turned up — a permission granted in-app starting nothing (R-54), the sound reading hidden on a phone that has a microphone (R-7), a blocking location check at launch, the bubble leaving its circle (R-32), and the whole location group waiting for ever in the Simulator (R-71) | Shipped — built and tested in the Simulator; **not yet verified on physical hardware** |
 | **v1.0 — App Store** | What is left is what a build machine cannot do: on-device verification of every reading, the audio-interruption and 50 Hz checks, calibration against a reference meter, screenshots from a real phone, a signing team, and a TestFlight pass. The checklist is [`docs/RELEASE.md`](RELEASE.md) §2 | Planned |
 
 ---
@@ -348,7 +358,7 @@ provisional choice v0.1.0 ships with; none of them is settled.
 | Q-2 | Compass and level tiles: open the detail view or jump straight to the tool? | Detail view; tools live in their own tab |
 | Q-3 | Leaving the app mid-recording: stop and save, or pause and resume on return? | Stop and save with an "interrupted" note |
 | Q-4 | Maximum recording length and a storage cap per session? | **Settled in v0.3.0:** a session stops itself at 100 MB or two hours, whichever comes first, warns in the bar from 80%, and will not start without the free space to finish |
-| Q-5 | Sound meter calibration: fixed per-model offsets, user calibration against a reference meter, or both? | User offset ships in v0.1.0; per-model table in v0.3.0 |
+| Q-5 | Sound meter calibration: fixed per-model offsets, user calibration against a reference meter, or both? | **Settled in v0.4.0: both.** A per-model baseline from `DeviceCalibration` underneath, and the user's own correction on top, worked out by the guided calibration (R-75). The per-model table stays empty until models are measured (R-72) |
 | Q-6 | Recordings: device-only, or iCloud sync later? | Device-only |
 | Q-7 | Temperature in a later version: nearby weather (labelled), Bluetooth thermometers, or neither? | Neither in v1 |
 | Q-8 | Widgets, Control Centre controls or Shortcuts actions ("What's the air pressure?") in v1.1? | Undecided |

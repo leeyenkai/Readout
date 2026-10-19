@@ -15,7 +15,7 @@ struct CompassToolView: View {
                 switch hub.availability(.heading) {
                 case .needsPermission(let permission):
                     PermissionCard(permission: permission, isDenied: false) {
-                        await hub.permissions.request(permission)
+                        await hub.requestPermission(permission)
                     }
                 case .denied(let permission):
                     PermissionCard(permission: permission, isDenied: true) {
@@ -74,29 +74,39 @@ struct CompassToolView: View {
         return Int((heading / 90).rounded()) % 4
     }
 
+    /// Sized from the space it is given rather than from a fixed 300 points, so the dial
+    /// still fits a small iPhone and still fills a large one.
     private var dial: some View {
-        ZStack {
-            Circle()
-                .stroke(.quaternary, lineWidth: 1.5)
+        GeometryReader { geometry in
+            let diameter = min(geometry.size.width, geometry.size.height)
+            let radius = diameter / 2
 
-            CompassDial()
-                .rotationEffect(.degrees(-(heading ?? 0)))
-                .animation(reduceMotion ? nil : .interactiveSpring(duration: 0.25), value: heading)
+            ZStack {
+                Circle()
+                    .stroke(.quaternary, lineWidth: 1.5)
 
-            if let lockedBearing {
-                Rectangle()
-                    .fill(Color.orange)
-                    .frame(width: 2)
-                    .rotationEffect(.degrees(lockedBearing - (heading ?? 0)))
+                CompassDial(radius: radius)
+                    .rotationEffect(.degrees(-(heading ?? 0)))
                     .animation(reduceMotion ? nil : .interactiveSpring(duration: 0.25), value: heading)
-            }
 
-            Triangle()
-                .fill(Color.accentColor)
-                .frame(width: 18, height: 14)
-                .offset(y: -140)
+                if let lockedBearing {
+                    Rectangle()
+                        .fill(Color.orange)
+                        .frame(width: 2)
+                        .rotationEffect(.degrees(lockedBearing - (heading ?? 0)))
+                        .animation(reduceMotion ? nil : .interactiveSpring(duration: 0.25), value: heading)
+                }
+
+                Triangle()
+                    .fill(Color.accentColor)
+                    .frame(width: 18, height: 14)
+                    .offset(y: -(radius - 7))
+            }
+            .frame(width: diameter, height: diameter)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(height: 300)
+        .aspectRatio(1, contentMode: .fit)
+        .frame(maxHeight: 320)
         .padding(.top, 8)
         .accessibilityHidden(true)
     }
@@ -201,6 +211,9 @@ struct CompassToolView: View {
 }
 
 private struct CompassDial: View {
+    /// Half the dial's width, so the ticks and letters sit just inside its rim.
+    let radius: Double
+
     var body: some View {
         ZStack {
             ForEach(0..<72) { index in
@@ -209,7 +222,7 @@ private struct CompassDial: View {
                 Rectangle()
                     .fill(isCardinal ? Color.primary : Color.secondary.opacity(isMajor ? 0.7 : 0.35))
                     .frame(width: isCardinal ? 2.5 : 1, height: isCardinal ? 18 : (isMajor ? 12 : 7))
-                    .offset(y: -132)
+                    .offset(y: -(radius - 18))
                     .rotationEffect(.degrees(Double(index) * 5))
             }
 
@@ -217,7 +230,7 @@ private struct CompassDial: View {
                 Text(letter)
                     .font(.headline.weight(.bold))
                     .foregroundStyle(letter == "N" ? Color.red : Color.primary)
-                    .offset(y: -104)
+                    .offset(y: -(radius - 46))
                     .rotationEffect(.degrees(Double(index) * 90))
             }
         }

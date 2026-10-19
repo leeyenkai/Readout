@@ -16,6 +16,15 @@ enum DeviceCalibration {
     /// The hardware identifier, for example `iPhone17,1`. Not the marketing name: Apple does
     /// not expose that, and the identifier is what a calibration measurement is filed under.
     static let modelIdentifier: String = {
+        #if targetEnvironment(simulator)
+        // `uname` reports the Mac's own architecture in the Simulator, which is no use as a
+        // calibration key and reads as nonsense in Settings. The device being simulated is
+        // in the environment instead.
+        if let simulated = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"],
+           !simulated.isEmpty {
+            return simulated
+        }
+        #endif
         var system = utsname()
         uname(&system)
         return withUnsafeBytes(of: &system.machine) { raw in

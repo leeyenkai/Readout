@@ -124,7 +124,7 @@ struct NewRecordingSheet: View {
     private func start() async {
         isStarting = true
         for permission in neededPermissions {
-            await hub.permissions.request(permission)
+            await hub.requestPermission(permission)
         }
         let usable = chosen.filter { hub.availability($0).isUsable }
         let missing = chosen.subtracting(usable)

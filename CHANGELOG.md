@@ -11,8 +11,84 @@ requirement IDs in [`docs/SPEC.md`](docs/SPEC.md).
 The next milestone is **v1.0 — App Store**, and what it needs is on-device work: see
 [`docs/RELEASE.md`](docs/RELEASE.md) §2.
 
+## [0.4.0] — 2026-10-19
+
+**Honest numbers, and the polish a release needs.** A calibration a user can actually carry
+out, charts that show the reading rather than the axis, and the defects a pass over the sensor
+lifecycle turned up — two of which would only ever have shown themselves on a real iPhone.
+Built and tested in the Simulator; the on-device pass that gates v1.0 is still outstanding
+(`docs/RELEASE.md` §2).
+
+### Added
+
+- **Calibrate against a reference meter (R-75).** Hold a sound level meter or a lux meter
+  beside the phone, type what it reads, and Readout works the correction out itself: averaged
+  over five seconds rather than caught on the instant, rounded no finer than the estimate
+  deserves, and refused outright when the two figures are too far apart to be a calibration
+  rather than a mistake. It reaches the sensor through an ordinary lease, so it works the same
+  from the Sound meter, the Light meter and Settings. This completes the user's half of
+  **Q-5**; the per-model table still needs hardware (R-10, R-66, R-72).
+- **A time axis on the live chart.** The window is fixed to the one the picker names and
+  labelled as a distance back from now — "−10 s", "−5 s" — so the trace scrolls at a constant
+  scale instead of the axis stretching to whatever has arrived (R-25).
+- **An empty state for the grid.** Hiding every tile is something edit mode can do, so the
+  grid now says so and offers to bring them back, rather than showing nothing at all (R-22).
+- **Settings:** a way back to the first-run explainer, the model identifier a calibration
+  would be filed under, and a Clear calibration button once a correction has been made
+  (R-23, R-73).
+- **Unit tests** — 18 more (127 in all), over the calibration arithmetic and its refusals,
+  reading a typed figure in a region that writes decimals with a comma, the chart's relative
+  time labels, and the bubble's vector clamp.
+
+### Changed
+
+- **Charts scale to their data.** Both the live chart and the session charts fitted their
+  vertical axis around zero, so air pressure — which lives between about 1,000 and 1,030 hPa —
+  drew as a dead flat line across the middle of an axis that ran from nothing. They now fit
+  the samples on screen, with a margin (R-25, R-43).
+- **Portrait only.** R-1 has always said portrait-first; the build allowed landscape anyway,
+  on screens that were never laid out or tested for it — and standing the phone on its edge to
+  use the level would rotate the interface out from under the measurement. The supported
+  orientations now match the specification.
+- **Tiles grow with the text.** The card had a fixed height and clipped a reading's name to a
+  single line, so at accessibility text sizes half the grid read "Accele…". The height is now
+  a scaled metric and a name may take two lines (R-52).
+- **Coordinates sit on two lines on their tile**, latitude over longitude. One line of decimal
+  degrees does not fit half the width of the screen, and the tile was cutting the longitude off
+  mid-digit (R-16).
+- **In the Simulator every reading comes from the synthetic source.** It used to stand in only
+  where a framework admitted the hardware was missing, and Core Location does not: it reports
+  itself available, then never produces a fix, so the location group and the compass's position
+  panel waited for ever. The whole interface is now demoable there, and every value carries its
+  "Simulated" note (R-71).
+
 ### Fixed
 
+- **A permission granted inside the app did not start anything.** A view takes its lease when
+  it appears, before the prompt is answered, so granting access left the lease outstanding and
+  the provider stopped — the compass sat blank until it was left and opened again, and so did
+  any tile on the grid. Permission requests now go through the hub, which starts whatever was
+  waiting on the answer (R-54, R-64).
+- **The sound reading could be hidden on a phone that has a microphone.** Availability was
+  decided by `AVAudioSession.availableInputs`, which answers only for the session's current
+  category — a playback one until the meter starts. Every iPhone has a microphone; whether it
+  can be opened is reported by the meter's own status instead (R-7, R-34).
+- **Location support was resolved with a blocking call at launch.** `locationServicesEnabled()`
+  is documented as blocking, and the hub asks about all 19 readings while the first frame is
+  being built. Services switched off device-wide is a refused permission, which is what the
+  app now treats it as, rather than missing hardware (R-7).
+- **The spirit level's bubble could leave its circle.** The two axes were clamped separately,
+  so a diagonal tilt put the bubble √2 of the way out — through the corner of the ring it is
+  supposed to sit inside. It is clamped as a vector now, keeping its direction (R-32).
+- **The Sound meter's peak was the one figure not taken from the shared history**, so it
+  disagreed with the average and the quietest reading — and showed 0 whenever the level came
+  from anywhere but the live audio engine. All three now come from the same buffer the chart
+  draws (R-34).
+- **A reading that has stopped arriving says so.** The microphone being taken by a call left
+  the last number on screen in the Sound level detail view; it now reads "Paused", as the Sound
+  meter already did (P-2, R-66).
+- **VoiceOver read coordinates in decimal degrees** whatever the user had chosen in Settings
+  (R-8, R-52).
 - **CI could not select a toolchain.** The workflow pointed at `/Applications/Xcode_27.app`,
   which the runner image does not have, and then picked the newest iPhone device type
   outright — which `simctl create` rejects when the newest runtime cannot run it. It now
@@ -231,7 +307,8 @@ not in this release.
   in the Simulator, where every value comes from the synthetic source and the permission gate
   is skipped.
 
-[Unreleased]: https://github.com/leeyenkai/Readout/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/leeyenkai/Readout/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/leeyenkai/Readout/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/leeyenkai/Readout/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/leeyenkai/Readout/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/leeyenkai/Readout/releases/tag/v0.1.0

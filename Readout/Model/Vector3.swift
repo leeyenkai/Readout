@@ -45,6 +45,21 @@ enum LevelMaths {
         )
     }
 
+    /// Where the bubble sits inside its circle, as a fraction of the usable radius in each
+    /// direction. `fullScale` is the tilt that puts the bubble on the rim.
+    ///
+    /// Clamped as a vector rather than one axis at a time: clamping x and y separately let a
+    /// diagonal tilt reach √2 of the limit, and the bubble slid out through the corner of
+    /// its own circle (R-32).
+    static func bubblePosition(x: Double, y: Double, fullScale: Double = 15) -> (x: Double, y: Double) {
+        guard fullScale > 0, x.isFinite, y.isFinite else { return (0, 0) }
+        let fractionX = x / fullScale
+        let fractionY = y / fullScale
+        let magnitude = sqrt(fractionX * fractionX + fractionY * fractionY)
+        guard magnitude > 1 else { return (fractionX, fractionY) }
+        return (fractionX / magnitude, fractionY / magnitude)
+    }
+
     /// Total tilt of a flat phone from horizontal, in degrees.
     static func surfaceTilt(gravity: Vector3) -> Double {
         let clamped = min(max(abs(gravity.z) / max(gravity.magnitude, 0.0001), 0), 1)

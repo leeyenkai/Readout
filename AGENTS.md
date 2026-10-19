@@ -61,7 +61,7 @@ Readout/
 │   │   ├── Tools/          Spirit level, compass, sound meter, light meter
 │   │   ├── Recordings/     Recording and CSV export (v0.2)
 │   │   ├── Onboarding/     The one-time first-run explainer (v0.3)
-│   │   └── Settings/       Settings sheet and stored preferences
+│   │   └── Settings/       Settings sheet, stored preferences, calibration (R-75)
 │   ├── Support/            Haptics and other small helpers
 │   ├── AppIcon.icon/       Icon Composer document — open it in Icon Composer, not a text editor
 │   ├── PrivacyInfo.xcprivacy
@@ -129,11 +129,13 @@ Readout/
 
 ## 9. Known constraints
 
-- **The Simulator has almost no sensors.** Accelerometer, gyroscope, magnetometer, barometer,
-  pedometer, proximity and the camera's exposure data are unavailable or fake. `SensorHub`
-  falls back to `MockSensorSource` there, so the UI is demoable, but any claim about a real
-  reading needs a physical iPhone (R-71).
+- **The Simulator has no sensors.** `SensorHub` takes *every* reading from `MockSensorSource`
+  there — not only the ones a framework admits to lacking, because Core Location reports itself
+  available and then never produces a fix. The UI is demoable and every value says "Simulated",
+  but any claim about a real reading needs a physical iPhone (R-71).
 - Sound (dB) and light (lux) figures are estimates from level metering and camera exposure.
-  They must always be shown with "≈" or an "estimate" note and are not calibrated yet (R-72).
+  They must always be shown with "≈" or an "estimate" note. A user can correct them against a
+  reference meter (R-75); the per-model baseline table stays empty until models are measured
+  (R-72).
 - iOS exposes no ambient-light and no temperature API. Do not add an "air temperature" reading;
   Thermal State is about the phone, not the room (R-13, R-14, X-2).

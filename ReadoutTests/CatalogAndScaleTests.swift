@@ -143,6 +143,27 @@ struct LevelMathsTests {
         #expect(abs(LevelMaths.surfaceTilt(gravity: gravity) - 5) < 0.001)
     }
 
+    @Test("The bubble stays inside its circle, diagonals included")
+    func bubbleStaysInside() {
+        #expect(LevelMaths.bubblePosition(x: 0, y: 0) == (x: 0, y: 0))
+
+        // Half of full scale on one axis is halfway out.
+        let halfway = LevelMaths.bubblePosition(x: 7.5, y: 0)
+        #expect(abs(halfway.x - 0.5) < 0.001)
+        #expect(halfway.y == 0)
+
+        // Full scale on both axes is √2 from the middle if each axis is clamped on its own;
+        // as a vector it is pulled back to the rim and keeps its direction.
+        let corner = LevelMaths.bubblePosition(x: 15, y: 15)
+        #expect(abs(sqrt(corner.x * corner.x + corner.y * corner.y) - 1) < 0.001)
+        #expect(abs(corner.x - corner.y) < 0.001)
+
+        // However far the phone is tilted, the bubble never leaves the circle.
+        let extreme = LevelMaths.bubblePosition(x: 90, y: -90)
+        #expect(abs(sqrt(extreme.x * extreme.x + extreme.y * extreme.y) - 1) < 0.001)
+        #expect(extreme.y < 0)
+    }
+
     @Test("Gravity rebuilt from pitch and roll matches the real thing")
     func gravityFromAttitude() {
         let flat = LevelMaths.gravity(pitchDegrees: 0, rollDegrees: 0)

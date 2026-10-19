@@ -17,6 +17,8 @@ nobody can do it from a build machine.
 | Export compliance | `INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO` — the app makes no network requests at all |
 | Permission strings | Four `INFOPLIST_KEY_NS*UsageDescription` entries, each saying what the sensor is for and that nothing leaves the phone |
 | Launch screen | `INFOPLIST_KEY_UILaunchScreen_Generation = YES` |
+| Orientation | Portrait only (`INFOPLIST_KEY_UISupportedInterfaceOrientations`), matching R-1 |
+| Screenshots for the listing | `docs/screenshots/` — Simulator captures, good enough to lay a listing out; retake on hardware |
 | Licence | `LICENSE` (MIT) |
 | CI | `.github/workflows/ci.yml` — builds and runs the test suite on every push |
 | Warnings | `SWIFT_TREAT_WARNINGS_AS_ERRORS` and `GCC_TREAT_WARNINGS_AS_ERRORS` are on; the tree builds clean |
@@ -45,8 +47,10 @@ The Simulator has almost no sensors, so everything Readout shows there comes fro
       say "Paused", then come back by itself — never hold a stale number.
 - [ ] Route change: plug in and unplug headphones while the Sound meter runs.
 - [ ] Haptics at level, at the compass points, and on recording start and stop (R-51).
-- [ ] Sound and light against a reference meter; record the offsets in
-      `DeviceCalibration` for that model identifier (R-10, R-66, R-72).
+- [ ] Sound and light against a reference meter. Use **Calibrate** in the Sound meter and the
+      Light meter (R-75) to find the correction, then copy it into `DeviceCalibration` for the
+      model identifier Settings names, so every phone of that model starts from it
+      (R-10, R-66, R-72).
 - [ ] Thermal state leaves `nominal` under load.
 - [ ] A recording survives a swipe into Control Centre and stops on a real backgrounding.
 

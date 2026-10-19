@@ -19,6 +19,7 @@ struct ReadingChartPanel: View {
 
     var body: some View {
         let source = source
+        let domain = domain(for: source)
 
         VStack(spacing: 12) {
             header
@@ -39,9 +40,26 @@ struct ReadingChartPanel: View {
                     }
                 }
             }
+            // A fixed window ending at the newest sample, so the trace scrolls leftwards at
+            // a constant scale rather than the axis stretching to fit whatever has arrived
+            // so far — and so the labels below mean the same thing from one second to the
+            // next (R-25).
+            .chartXScale(domain: domain)
+            // And a vertical scale that fits what is on screen rather than reaching down to
+            // zero: air pressure only ever moves between about 1,000 and 1,030 hPa, and on an
+            // axis that starts at nothing it draws as a dead flat line (R-25).
+            .chartYScale(domain: yDomain(for: source))
             .chartXAxis {
-                AxisMarks(values: .automatic(desiredCount: 3)) {
+                AxisMarks(values: marks(in: domain)) { value in
                     AxisGridLine()
+                    AxisValueLabel {
+                        if let date = value.as(Date.self) {
+                            Text(ValueFormatting.relativeTime(
+                                secondsAgo: domain.upperBound.timeIntervalSince(date)
+                            ))
+                            .font(.caption2)
+                        }
+                    }
                 }
             }
             .chartYAxis {
@@ -131,6 +149,43 @@ struct ReadingChartPanel: View {
     /// rather than once per channel — three axes used to walk the whole buffer three times.
     private var source: [SensorSample] {
         isPaused ? frozen : samples
+    }
+
+    /// The window the chart draws, ending at the newest sample it has.
+    private func domain(for source: [SensorSample]) -> ClosedRange<Date> {
+        let end = source.last?.time ?? .now
+        return end.addingTimeInterval(-window.duration)...end
+    }
+
+    /// The band the visible samples occupy, with a little room above and below. A steady
+    /// reading still gets a band, or the line would have nowhere to be drawn.
+    private func yDomain(for source: [SensorSample]) -> ClosedRange<Double> {
+        var lowest = Double.greatestFiniteMagnitude
+        var highest = -Double.greatestFiniteMagnitude
+        for index in descriptor.channels.indices where !hiddenChannels.contains(index) {
+            let presentation = descriptor.channels[index].unit.presentation(units)
+            for sample in source {
+                guard let value = sample.value(index) else { continue }
+                let converted = presentation.convert(value)
+                guard converted.isFinite else { continue }
+                lowest = min(lowest, converted)
+                highest = max(highest, converted)
+            }
+        }
+        guard lowest <= highest else { return -1...1 }
+        let span = highest - lowest
+        let padding = span > 0 ? span * 0.15 : max(abs(highest) * 0.01, 0.5)
+        return (lowest - padding)...(highest + padding)
+    }
+
+    /// Three marks — the start of the window, its middle and now — rather than whatever
+    /// wall-clock boundaries an automatic Date axis would pick.
+    private func marks(in domain: ClosedRange<Date>) -> [Date] {
+        [
+            domain.lowerBound,
+            domain.lowerBound.addingTimeInterval(window.duration / 2),
+            domain.upperBound,
+        ]
     }
 
     private func points(channel: Int, from source: [SensorSample]) -> [ChartPoint] {

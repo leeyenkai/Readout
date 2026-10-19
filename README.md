@@ -1,5 +1,10 @@
 # Readout
 
+[![CI](https://github.com/leeyenkai/Readout/actions/workflows/ci.yml/badge.svg)](https://github.com/leeyenkai/Readout/actions/workflows/ci.yml)
+[![Platform](https://img.shields.io/badge/platform-iOS%2026%2B-lightgrey)](https://www.apple.com/ios/)
+[![Swift](https://img.shields.io/badge/Swift-6-orange)](https://swift.org)
+[![Licence](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
+
 A free, lightweight iPhone app that turns the phone's built-in sensors into clear, live
 readings — and explains what each one actually measures.
 
@@ -10,12 +15,21 @@ a compass, a sound meter and a light meter.
 
 It is a hobby project. No ads, no in-app purchases, no accounts, and no network requests at all.
 
+| | | | |
+| --- | --- | --- | --- |
+| ![The readings grid](docs/screenshots/readings.png) | ![A reading's detail view](docs/screenshots/detail.png) | ![The compass](docs/screenshots/compass.png) | ![The sound meter](docs/screenshots/sound-meter.png) |
+| Readings | Detail, chart and stats | Compass | Sound meter |
+
+<sub>From the Simulator, where every number comes from a synthetic source — see
+[Build and run](#build-and-run).</sub>
+
 ## Status
 
-**v0.3.0 — release readiness.** Every reading, every instrument, recording and CSV export, the
-app icon, and the scaffolding an App Store submission needs. What is left before 1.0 is the
-work a build machine cannot do: verifying the readings on a real iPhone, calibrating sound and
-light against a reference meter, and a TestFlight pass — the checklist is
+**v0.4.0 — honest estimates and polish.** Every reading, every instrument, recording and CSV
+export, the app icon, a calibration you can actually carry out against a reference meter, and
+the scaffolding an App Store submission needs. What is left before 1.0 is the work a build
+machine cannot do: verifying the readings on a real iPhone, measuring the sound and light
+baselines, and a TestFlight pass — the checklist is
 [`docs/RELEASE.md`](docs/RELEASE.md) §2.
 
 **Nothing has been verified on physical hardware yet.** Everything here was built and run in
@@ -26,7 +40,7 @@ for the milestones.
 
 ## Requirements
 
-- iOS 26.0 or later, iPhone only
+- iOS 26.0 or later, iPhone only, portrait
 - Xcode 26 or later — developed on Xcode 27, and CI builds and tests it on 26.6
 - Swift 6 language mode; nothing here needs the iOS 27 SDK
 - No third-party dependencies
@@ -67,6 +81,10 @@ Two things iOS does not expose, and Readout therefore does not pretend to have: 
 (measured here through the camera, so it is an estimate) and **air temperature** (not available at
 all — "Phone heat" is the device's own thermal state, not the room's).
 
+Sound and light carry a "≈" for the same reason. If you own a sound level meter or a lux meter,
+**Calibrate** in either tool takes its reading and works out the correction for your phone; it
+stays on the device and nothing else changes.
+
 ## Privacy
 
 Everything is measured and stored on the phone. The app makes no network requests, contains no
@@ -82,17 +100,19 @@ steps), Location While Using (location group, true north), Microphone (sound), C
 | --- | --- |
 | [`docs/SPEC.md`](docs/SPEC.md) | Specification and requirement IDs — the source of truth for scope |
 | [`AGENTS.md`](AGENTS.md) | Working agreement: architecture rules, conventions, constraints |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to propose and make a change |
 | [`CLAUDE.md`](CLAUDE.md) | Claude Code pointer to `AGENTS.md` |
 | [`CHANGELOG.md`](CHANGELOG.md) | Release history |
 | [`docs/RELEASE.md`](docs/RELEASE.md) | What is done for release, and the on-device checklist that still gates v1.0 |
+| `docs/screenshots/` | Simulator captures used in this README |
 | `Readout/` | App source: `App/`, `Model/`, `Sensors/`, `Features/`, `Support/` |
 | `ReadoutTests/` | Unit tests for the pure logic (units, dB/lux maths, statistics) |
 
 ## Contributing
 
-Read [`AGENTS.md`](AGENTS.md) before changing anything — it covers the architecture rules, the
-privacy constraints and the requirement that `CHANGELOG.md` and `docs/SPEC.md` move with the
-code.
+[`CONTRIBUTING.md`](CONTRIBUTING.md) is the short version; [`AGENTS.md`](AGENTS.md) is the full
+working agreement, covering the architecture rules, the privacy constraints and the requirement
+that `CHANGELOG.md` and `docs/SPEC.md` move with the code.
 
 ## Licence
 

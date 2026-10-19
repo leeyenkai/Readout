@@ -29,10 +29,15 @@ final class LocationProvider: NSObject, SensorProvider {
         permissionStatus = Self.status(from: manager.authorizationStatus)
     }
 
+    /// Every iPhone can locate itself, so the location group is always offered and the
+    /// permission state decides what the tile shows. `locationServicesEnabled()` is not
+    /// asked: Apple documents it as blocking, and the hub resolves support for all 19
+    /// readings during launch (R-7). Services switched off device-wide reads as a refused
+    /// permission, which is what it amounts to, rather than as missing hardware.
     func isSupported(_ reading: ReadingID) -> Bool {
         switch reading {
         case .heading: CLLocationManager.headingAvailable()
-        default: CLLocationManager.locationServicesEnabled()
+        default: true
         }
     }
 

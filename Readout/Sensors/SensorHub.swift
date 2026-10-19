@@ -62,14 +62,19 @@ final class SensorHub {
         }
         permissions.locationProvider = location
         for reading in ReadingID.allCases {
+            #if targetEnvironment(simulator)
+            // The Simulator has none of these sensors, so every reading comes from the
+            // synthetic source and the whole interface stays demoable (R-71).
+            //
+            // All of them, not only the ones the frameworks admit to lacking: Core Location
+            // reports itself as available there and then never produces a fix, which left
+            // the location group — and the compass's position panel — waiting for ever.
+            providersBySupportedReading[reading] = mock
+            #else
             if let provider = providersByReading[reading], provider.isSupported(reading) {
                 providersBySupportedReading[reading] = provider
-            } else {
-                #if targetEnvironment(simulator)
-                // The Simulator has almost no sensors, so synthetic data stands in (R-71).
-                providersBySupportedReading[reading] = mock
-                #endif
             }
+            #endif
         }
         apply(settings)
     }
@@ -131,7 +136,23 @@ final class SensorHub {
         guard isSuspended else { return }
         isSuspended = false
         permissions.refresh()
-        for reading in leases.keys {
+        restartLeases()
+    }
+
+    /// Asks for a permission and then starts whatever was already waiting on it (R-54).
+    ///
+    /// A view takes its lease the moment it appears, before the user has answered the prompt,
+    /// so the lease is outstanding but the provider is not running. Without this second step
+    /// the reading stays blank until the view is left and opened again — which is what the
+    /// compass did after location had just been allowed.
+    func requestPermission(_ permission: SensorPermission) async {
+        await permissions.request(permission)
+        restartLeases()
+    }
+
+    /// Starts every leased reading that is allowed to run and is not running yet.
+    private func restartLeases() {
+        for reading in leases.keys where !isActive(reading) {
             startIfNeeded(reading)
         }
     }
@@ -197,13 +218,24 @@ final class SensorHub {
         return LevelMaths.gravity(pitchDegrees: sample.values[0], rollDegrees: sample.values[1])
     }
 
+    /// Why a reading a view is holding has stopped arriving, when iOS says so. Shown in
+    /// place of the value: a number that has stopped being true is worse than none (P-2).
+    ///
+    /// The microphone is the one case iOS reports — a call, Siri or another app takes it —
+    /// and the engine comes back by itself when it is handed back (R-34, R-66).
+    func stalledReason(_ reading: ReadingID) -> String? {
+        guard reading == .soundLevel, isActive(reading), audio.status == .interrupted else {
+            return nil
+        }
+        return "Paused — something else is using the microphone"
+    }
+
     func buffer(_ reading: ReadingID) -> SampleBuffer {
         buffers[reading] ?? SampleBuffer()
     }
 
     func resetStats(_ reading: ReadingID) {
         buffers[reading]?.resetStats()
-        if reading == .soundLevel { audio.resetPeak() }
     }
 
     func clearHistory(_ reading: ReadingID) {

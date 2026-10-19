@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: What Readout is meant to do
+    url: https://github.com/leeyenkai/Readout/blob/main/docs/SPEC.md
+    about: The specification — scope, requirement IDs and the questions still open.
+  - name: How to work in this repository
+    url: https://github.com/leeyenkai/Readout/blob/main/AGENTS.md
+    about: Architecture rules, privacy constraints and conventions.

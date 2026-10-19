@@ -1,0 +1,57 @@
+name: Bug report
+description: Something in Readout does not behave as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Most of Readout's numbers come from hardware, so the iPhone model and the reading
+        involved usually matter more than anything else. Please include both.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you saw, and what you expected instead.
+      placeholder: |
+        1. Opened the Sound meter
+        2. Took a phone call and hung up
+        3. The level stayed at 42 dB instead of coming back
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: iPhone and iOS version
+      description: Settings → General → About. "Simulator" is a fine answer too.
+      placeholder: iPhone 16 Pro, iOS 26.2
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Readout version
+      description: Settings → About → Version, inside the app.
+      placeholder: 0.4.0 (4)
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where in the app
+      options:
+        - Readings grid
+        - A reading's detail view
+        - Spirit level
+        - Compass
+        - Sound meter
+        - Light meter
+        - Recording or CSV export
+        - Settings
+        - Somewhere else
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: A screenshot, or a CSV file from a recording, if either helps.

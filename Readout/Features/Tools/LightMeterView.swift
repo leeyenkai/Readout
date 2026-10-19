@@ -11,6 +11,7 @@ struct LightMeterView: View {
     @State private var isHeld = false
     @State private var frozen: Double?
     @State private var isFrontCamera = false
+    @State private var isCalibrating = false
 
     private let descriptor = ReadingCatalog.descriptor(.light)
 
@@ -20,7 +21,7 @@ struct LightMeterView: View {
                 switch hub.availability(.light) {
                 case .needsPermission(let permission):
                     PermissionCard(permission: permission, isDenied: false) {
-                        await hub.permissions.request(permission)
+                        await hub.requestPermission(permission)
                     }
                 case .denied(let permission):
                     PermissionCard(permission: permission, isDenied: true) {
@@ -59,6 +60,9 @@ struct LightMeterView: View {
             hub.light.position = .back
         }
         .onChange(of: hub.availability(.light)) { _, _ in syncActivation() }
+        .sheet(isPresented: $isCalibrating) {
+            CalibrationSheet(target: .light)
+        }
     }
 
     /// Starts the camera once the permission allows it, and never more than once. The card
@@ -117,21 +121,29 @@ struct LightMeterView: View {
         .accessibilityLabel("Camera preview. Tap to meter a spot.")
     }
 
+    /// A wrapping row, so a third control and large Dynamic Type do not push each other off
+    /// the screen (R-52).
     private var controls: some View {
-        HStack(spacing: 10) {
+        FlowRow(spacing: 10) {
             Button(isHeld ? "Release" : "Hold") {
                 isHeld.toggle()
                 frozen = isHeld ? hub.sample(.light)?.value(0) : nil
             }
             .buttonStyle(.glass)
+            .accessibilityHint(isHeld ? "Lets the reading follow the camera again" : "Freezes the reading")
 
             Button(isFrontCamera ? "Front camera" : "Rear camera") {
                 isFrontCamera.toggle()
                 hub.light.position = isFrontCamera ? .front : .back
             }
             .buttonStyle(.glass)
+            .accessibilityHint("Switches which camera meters the light")
+
+            Button("Calibrate") { isCalibrating = true }
+                .buttonStyle(.glass)
         }
         .font(.subheadline.weight(.medium))
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

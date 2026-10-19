@@ -91,4 +91,15 @@ struct ValueFormattingTests {
         #expect(ValueFormatting.coordinate(latitude: value, longitude: value, format: .degreesMinutesSeconds).contains("—"))
         #expect(ValueFormatting.coordinate(latitude: value, longitude: value, format: .decimal).contains("—"))
     }
+
+    @Test("A chart's time axis reads as a distance back from now")
+    func relativeTime() {
+        #expect(ValueFormatting.relativeTime(secondsAgo: 0) == "now")
+        #expect(ValueFormatting.relativeTime(secondsAgo: 0.4) == "now")
+        #expect(ValueFormatting.relativeTime(secondsAgo: 5) == "−5 s")
+        #expect(ValueFormatting.relativeTime(secondsAgo: 59) == "−59 s")
+        #expect(ValueFormatting.relativeTime(secondsAgo: 60) == "−1 min")
+        #expect(ValueFormatting.relativeTime(secondsAgo: 150) == "−3 min")
+        #expect(ValueFormatting.relativeTime(secondsAgo: .nan).isEmpty)
+    }
 }

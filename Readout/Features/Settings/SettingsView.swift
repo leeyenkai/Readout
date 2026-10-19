@@ -5,6 +5,7 @@ struct SettingsView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(SensorHub.self) private var hub
     @Environment(\.dismiss) private var dismiss
+    @State private var calibrating: CalibrationTarget?
 
     var body: some View {
         NavigationStack {
@@ -53,7 +54,7 @@ struct SettingsView: View {
 
                 Section {
                     LabeledContent("Sound offset") {
-                        Text("\(settings.soundCalibrationOffset, format: .number.precision(.fractionLength(0))) dB")
+                        Text("\(settings.soundCalibrationOffset, format: .number.precision(.fractionLength(1))) dB")
                             .monospacedDigit()
                     }
                     Slider(
@@ -61,9 +62,12 @@ struct SettingsView: View {
                             get: { settings.soundCalibrationOffset },
                             set: { settings.soundCalibrationOffset = $0 }
                         ),
-                        in: -20...20,
-                        step: 1
+                        in: Calibration.soundOffsetRange,
+                        step: 0.5
                     )
+                    .accessibilityLabel("Sound offset in decibels")
+                    Button("Calibrate sound…") { calibrating = .sound }
+
                     LabeledContent("Light multiplier") {
                         Text(settings.lightCalibration, format: .number.precision(.fractionLength(2)))
                             .monospacedDigit()
@@ -73,16 +77,24 @@ struct SettingsView: View {
                             get: { settings.lightCalibration },
                             set: { settings.lightCalibration = $0 }
                         ),
-                        in: 0.25...4,
+                        in: Calibration.lightMultiplierRange,
                         step: 0.05
                     )
+                    .accessibilityLabel("Light multiplier")
+                    Button("Calibrate light…") { calibrating = .light }
+
+                    if settings.hasCalibration {
+                        Button("Clear calibration", role: .destructive) {
+                            settings.resetCalibration()
+                        }
+                    }
                 } header: {
                     Text("Calibration")
                 } footer: {
                     Text("""
-                        Sound and light are estimates, not calibrated measurements. If you \
-                        have a reference meter to hand, nudge these until Readout agrees \
-                        with it. \(Self.baselineNote)
+                        Sound and light are estimates, not calibrated measurements. Nudge \
+                        these by hand, or hold a reference meter next to the phone and let \
+                        Readout work the correction out for you. \(Self.baselineNote)
                         """)
                 }
 
@@ -124,6 +136,14 @@ struct SettingsView: View {
                 Section {
                     LabeledContent("Version", value: Self.version)
                     LabeledContent("Readings", value: "\(ReadingCatalog.all.count)")
+                    // The key a calibration measurement would be filed under (R-10, R-72).
+                    LabeledContent("Model", value: DeviceCalibration.modelIdentifier)
+                    // The first-run explainer is the only place the estimates are set out in
+                    // full, so it is worth being able to read it again (R-73).
+                    Button("Show the welcome screen again") {
+                        settings.hasSeenWelcome = false
+                        dismiss()
+                    }
                 } header: {
                     Text("About")
                 } footer: {
@@ -131,6 +151,9 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .sheet(item: $calibrating) { target in
+                CalibrationSheet(target: target)
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

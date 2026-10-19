@@ -14,6 +14,13 @@ struct ReadingsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
+                if isGridEmpty {
+                    AllHiddenNotice {
+                        withAnimation(.snappy) { settings.showAllReadings() }
+                    }
+                    .padding(.top, 48)
+                }
+
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(ReadingGroup.allCases) { group in
                         let readings = visibleReadings(in: group)
@@ -132,6 +139,12 @@ struct ReadingsView: View {
         }
     }
 
+    /// Hiding every tile is a state edit mode can reach, so the grid says so rather than
+    /// sitting blank (R-22).
+    private var isGridEmpty: Bool {
+        ReadingGroup.allCases.allSatisfy { visibleReadings(in: $0).isEmpty }
+    }
+
     /// The other tiles in this reading's group, as VoiceOver move targets.
     private func reorderTargets(for descriptor: ReadingDescriptor) -> [ReadingDescriptor] {
         visibleReadings(in: descriptor.group).filter { $0.id != descriptor.id }
@@ -183,6 +196,21 @@ private struct GroupHeader: View {
         .padding(.top, 12)
         .padding(.bottom, 2)
         .textCase(nil)
+    }
+}
+
+private struct AllHiddenNotice: View {
+    let onShowAll: () -> Void
+
+    var body: some View {
+        ContentUnavailableView {
+            Label("No tiles on the grid", systemImage: "square.dashed")
+        } description: {
+            Text("Every reading is hidden. Bring them all back, or tap Edit to pick the ones you want.")
+        } actions: {
+            Button("Show all readings", action: onShowAll)
+                .buttonStyle(.glassProminent)
+        }
     }
 }
 

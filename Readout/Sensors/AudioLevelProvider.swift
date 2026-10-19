@@ -16,8 +16,6 @@ final class AudioLevelProvider: SensorProvider {
         didSet { meter.timeConstant = respondsFast ? 0.125 : 1.0 }
     }
 
-    private(set) var peak: Double = 0
-
     /// What the microphone is actually doing. The Sound meter shows this rather than holding
     /// the last number on screen: a call or another app taking the microphone used to freeze
     /// the reading with no sign that it had stopped being true (P-2, R-34).
@@ -44,8 +42,13 @@ final class AudioLevelProvider: SensorProvider {
     private var hasTap = false
     private var observers: [NSObjectProtocol] = []
 
+    /// Every iPhone has a microphone, and `AVAudioSession.availableInputs` answers only for
+    /// the session's *current* category — which is a playback one until the meter starts, so
+    /// asking it here reported no input on a perfectly capable phone and hid the reading
+    /// altogether (R-7). Whether the microphone can actually be opened is reported by
+    /// `status` instead, which the meter shows.
     func isSupported(_ reading: ReadingID) -> Bool {
-        !AVAudioSession.sharedInstance().availableInputs.isNilOrEmpty
+        reading == .soundLevel
     }
 
     func start(_ reading: ReadingID, rate: ActivationRate) {
@@ -63,12 +66,6 @@ final class AudioLevelProvider: SensorProvider {
         observers = []
         teardown()
         status = .stopped
-        peak = 0
-    }
-
-    func resetPeak() {
-        peak = 0
-        meter.reset()
     }
 
     // MARK: - Engine
@@ -197,7 +194,6 @@ final class AudioLevelProvider: SensorProvider {
         guard isRunning, status == .live else { return }
         let rms = meter.smoothedRMS
         let decibels = SoundLevelMaths.decibels(rms: rms, calibrationOffset: calibrationOffset)
-        peak = max(peak, decibels)
         output?(.soundLevel, SensorSample(values: [decibels], note: "Estimate"))
     }
 }
@@ -236,11 +232,5 @@ private final class LevelMeter: @unchecked Sendable {
             let alpha = SoundLevelMaths.smoothing(timeConstant: constant, interval: interval)
             smoothed += alpha * (rms - smoothed)
         }
-    }
-}
-
-private extension Optional where Wrapped == [AVAudioSessionPortDescription] {
-    var isNilOrEmpty: Bool {
-        self?.isEmpty ?? true
     }
 }
