@@ -26,14 +26,14 @@ It is a hobby project. No ads, no in-app purchases, no accounts, and no network 
 ## Status
 
 **v0.4.0 — honest estimates and polish.** Every reading, every instrument, recording and CSV
-export, the app icon, a calibration you can actually carry out against a reference meter, and
-the scaffolding an App Store submission needs. What is left before 1.0 is the work a build
-machine cannot do: verifying the readings on a real iPhone, measuring the sound and light
-baselines, and a TestFlight pass — the checklist is
-[`docs/RELEASE.md`](docs/RELEASE.md) §2.
+export, the app icon, and a calibration you can carry out against a reference meter. It is
+ready to hand to somebody: clone it, set your own signing team, and it runs on your iPhone.
+There is no plan to put it on the App Store.
 
 **Nothing has been verified on physical hardware yet.** Everything here was built and run in
-the Simulator, where the numbers come from a synthetic source.
+the Simulator, where the numbers come from a synthetic source. What is left before 1.0 is the
+work a build machine cannot do — the on-device checklist is
+[`docs/RELEASE.md`](docs/RELEASE.md) §3.
 
 See [`CHANGELOG.md`](CHANGELOG.md) for what has shipped and [`docs/SPEC.md`](docs/SPEC.md) §12
 for the milestones.
@@ -65,8 +65,16 @@ Run the tests with:
 xcodebuild -project Readout.xcodeproj -scheme Readout -destination 'platform=iOS Simulator,name=Readout iPhone' test
 ```
 
-The Simulator has almost no sensors, so Readout falls back to a synthetic source there: the UI
-is complete and demoable, but the numbers are made up. Real readings need a physical iPhone.
+The Simulator has no sensors, so Readout takes every reading from a synthetic source there:
+the interface is complete and demoable, every value says "Simulated", and none of it is real.
+
+### On your own iPhone
+
+Signing is deliberately unset, so you sign with your own team: open `Readout.xcodeproj`, then
+target *Readout* → Signing & Capabilities → Team. A free Apple ID works — builds signed with
+one stop running after seven days. If Xcode objects to the bundle identifier, change the
+`com.leeyenkai` prefix to your own. [`docs/RELEASE.md`](docs/RELEASE.md) §2 has the whole
+sequence, including what to say about the estimates when you pass it on.
 
 ## What it reads
 
@@ -87,8 +95,9 @@ stays on the device and nothing else changes.
 
 ## Privacy
 
-Everything is measured and stored on the phone. The app makes no network requests, contains no
-analytics or crash-reporting SDKs, and its App Store privacy label is "Data Not Collected".
+Everything is measured and stored on the phone. The app makes no network requests and contains
+no analytics or crash-reporting SDKs, so there is nothing for a privacy label to declare — the
+privacy manifest in the bundle says exactly that.
 Microphone audio and camera frames are read in memory to derive a level and are never saved.
 
 Permissions are requested only when a reading needs one: Motion & Fitness (pressure, altitude,
@@ -103,7 +112,7 @@ steps), Location While Using (location group, true north), Microphone (sound), C
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to propose and make a change |
 | [`CLAUDE.md`](CLAUDE.md) | Claude Code pointer to `AGENTS.md` |
 | [`CHANGELOG.md`](CHANGELOG.md) | Release history |
-| [`docs/RELEASE.md`](docs/RELEASE.md) | What is done for release, and the on-device checklist that still gates v1.0 |
+| [`docs/RELEASE.md`](docs/RELEASE.md) | How to share it, how to run it on your own iPhone, and the on-device checklist that still gates v1.0 |
 | `docs/screenshots/` | Simulator captures used in this README |
 | `Readout/` | App source: `App/`, `Model/`, `Sensors/`, `Features/`, `Support/` |
 | `ReadoutTests/` | Unit tests for the pure logic (units, dB/lux maths, statistics) |

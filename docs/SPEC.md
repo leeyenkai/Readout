@@ -14,11 +14,13 @@ the milestone table in [§12](#12-milestones).
 ## 1. Overview
 
 Readout is a free, lightweight iPhone app that turns the phone's built-in sensors into clear,
-live readings for curious everyday users. It explains what each sensor measures, compares
+live readings for curious everyday users. It is shared as source and built from Xcode; there is
+no plan to publish it on the App Store. It explains what each sensor measures, compares
 readings to everyday references, and adds four simple instruments: spirit level, compass,
 sound meter and light meter.
 
-It is a hobby project with no monetisation: no ads, no in-app purchases, no account.
+It is a hobby project with no monetisation and no distribution: no ads, no in-app purchases,
+no account, and nothing to sign up to.
 
 ### 1.1 Design principles
 
@@ -271,8 +273,9 @@ and system components wherever they exist.
 
 ## 10. Permissions and privacy
 
-Readout collects no data: everything is measured and stored on the phone, the app makes no
-network requests, and the App Store privacy label is "Data Not Collected".
+Readout collects no data: everything is measured and stored on the phone, and the app makes no
+network requests. There is nothing for a privacy label to declare, and the manifest in the
+bundle says so (R-74).
 
 | Permission | Needed for | Asked when |
 | --- | --- | --- |
@@ -343,7 +346,7 @@ Built with Xcode 27 / Swift 6.4 against the iOS 27 SDK; deployment target iOS 26
 | **v0.2.0 — Recording & export** | §8 in full: recording sessions, sample rates, recording bar, session list and detail, SwiftData metadata, CSV writing and share-sheet export, Record buttons wired up (R-6, R-29, R-36–45, R-51, R-57, R-61) | Shipped — recorded, listed, charted and exported in the Simulator against the synthetic source; **not yet verified on physical hardware** |
 | **v0.3.0 — Release readiness** | App icon as an Icon Composer document; the defects a full-source audit turned up, including one that could delete every recording and one that could crash the Sound meter; drag-to-reorder (R-22), chart audio graphs (R-52), the calibration mechanism (R-10, R-66), first-run explainer (R-73); recording limits (Q-4) and crash recovery; privacy manifest (R-74), licence, CI and `docs/RELEASE.md` | Shipped — built and tested in the Simulator; **not yet verified on physical hardware** |
 | **v0.4.0 — Honest estimates & polish** | Guided calibration against a reference meter (R-75); charts scaled to their data with a labelled time axis (R-25, R-43); portrait only (R-1); tiles that grow with Dynamic Type (R-52); the empty-grid state (R-22); and the defects a lifecycle pass turned up — a permission granted in-app starting nothing (R-54), the sound reading hidden on a phone that has a microphone (R-7), a blocking location check at launch, the bubble leaving its circle (R-32), and the whole location group waiting for ever in the Simulator (R-71) | Shipped — built and tested in the Simulator; **not yet verified on physical hardware** |
-| **v1.0 — App Store** | What is left is what a build machine cannot do: on-device verification of every reading, the audio-interruption and 50 Hz checks, calibration against a reference meter, screenshots from a real phone, a signing team, and a TestFlight pass. The checklist is [`docs/RELEASE.md`](RELEASE.md) §2 | Planned |
+| **v1.0 — Verified on hardware** | What is left is what a build machine cannot do: on-device verification of every reading, the audio-interruption and 50 Hz checks, and the sound and light baselines measured against a reference meter. The checklist is [`docs/RELEASE.md`](RELEASE.md) §3. There is no plan to publish on the App Store, so nothing here waits on a submission | Planned |
 
 ---
 
@@ -363,5 +366,5 @@ provisional choice v0.1.0 ships with; none of them is settled.
 | Q-7 | Temperature in a later version: nearby weather (labelled), Bluetooth thermometers, or neither? | Neither in v1 |
 | Q-8 | Widgets, Control Centre controls or Shortcuts actions ("What's the air pressure?") in v1.1? | Undecided |
 | Q-9 | iPad or Apple Watch later, given their different sensor sets? | Undecided |
-| Q-10 | Name check: is "Readout" available on the App Store, and what does the icon look like? | **Icon settled in v0.3.0** — a rising trace with a live point, the mark the tiles already draw, as an Icon Composer document so iOS renders all four appearances. The App Store name check is still open and needs an App Store Connect account |
+| Q-10 | Name check: is "Readout" available on the App Store, and what does the icon look like? | **Settled.** The icon shipped in v0.3.0 — a rising trace with a live point, the mark the tiles already draw, as an Icon Composer document so iOS renders all four appearances. The name check is moot: Readout is shared as source and run from Xcode, not published |
 | Q-11 | Re-check the latest iOS SDK before building, in case Apple has opened up light or temperature data. | Checked 2026-10-18 against the iOS 27 SDK: still no ambient-light or temperature API |

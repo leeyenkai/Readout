@@ -1,12 +1,16 @@
-# Releasing Readout
+# Sharing Readout
 
-What stands between a green build and an App Store submission. Everything in §1 is done in
-the repository; everything in §2 needs an Apple Developer account and a physical iPhone, and
-nobody can do it from a build machine.
+Readout is a hobby project. There is no plan to put it on the App Store, so "ready" here means
+ready to hand to somebody: they can clone it, build it, run it on their own iPhone, and either
+trust what it tells them or know exactly where it is guessing.
 
-> **Archiving will fail until `DEVELOPMENT_TEAM` is set.** It is deliberately blank: there is
-> no team to sign with yet. Set it in Xcode (target → Signing & Capabilities → Team) or add
-> `DEVELOPMENT_TEAM = ABCDE12345;` beside `CODE_SIGN_STYLE` in `project.pbxproj`.
+Everything in §1 is done in the repository. §2 is what the person you share it with has to do,
+§3 is the on-device work that decides whether the numbers can be trusted, and §4 is the
+paperwork a submission would need, kept only in case that ever changes.
+
+> **Signing is deliberately unset.** `DEVELOPMENT_TEAM` is blank, so whoever opens the project
+> signs with their own team. Xcode asks for it the first time they build to a device; §2 says
+> what to answer.
 
 ## 1. In the repository — done
 
@@ -14,30 +18,46 @@ nobody can do it from a build machine.
 | --- | --- |
 | App icon, all four renditions | `Readout/AppIcon.icon` (Icon Composer document; open it in Icon Composer to edit) |
 | Privacy manifest | `Readout/PrivacyInfo.xcprivacy` — no tracking, no collected data, `UserDefaults` (CA92.1) and disk-space (E174.1) declared |
-| Export compliance | `INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO` — the app makes no network requests at all |
 | Permission strings | Four `INFOPLIST_KEY_NS*UsageDescription` entries, each saying what the sensor is for and that nothing leaves the phone |
 | Launch screen | `INFOPLIST_KEY_UILaunchScreen_Generation = YES` |
 | Orientation | Portrait only (`INFOPLIST_KEY_UISupportedInterfaceOrientations`), matching R-1 |
-| Screenshots for the listing | `docs/screenshots/` — Simulator captures, good enough to lay a listing out; retake on hardware |
-| Licence | `LICENSE` (MIT) |
+| Screenshots | `docs/screenshots/` — Simulator captures, used in the README. The numbers in them are synthetic |
+| Licence | `LICENSE` (MIT) — anyone may take this and do what they like with it |
+| Contributing | `CONTRIBUTING.md`, and `AGENTS.md` for the full working agreement |
 | CI | `.github/workflows/ci.yml` — builds and runs the test suite on every push |
 | Warnings | `SWIFT_TREAT_WARNINGS_AS_ERRORS` and `GCC_TREAT_WARNINGS_AS_ERRORS` are on; the tree builds clean |
+| Export compliance | `INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO` — the app makes no network requests at all |
 
-## 2. Before submitting
+## 2. Running it on an iPhone
 
-### Signing and identifiers
+What somebody needs, start to finish:
 
-- [ ] Set `DEVELOPMENT_TEAM`.
-- [ ] Register `com.leeyenkai.Readout` in App Store Connect. The bundle identifier in the
-      project must match exactly.
-- [ ] Bump `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`, and move `[Unreleased]` in
-      `CHANGELOG.md` to a version heading with a date (AGENTS.md §8).
+1. **Xcode 26 or later** and an iPhone on **iOS 26 or later**. The Simulator needs neither a
+   team nor a device, and is enough to see every screen — but every number there is synthetic
+   (R-71).
+2. **Their own signing team.** Open `Readout.xcodeproj` → target *Readout* → Signing &
+   Capabilities → Team. A free Apple ID works; builds signed with one stop running after seven
+   days and have to be rebuilt.
+3. **A bundle identifier they can use.** `com.leeyenkai.Readout` is the one in the project. A
+   free account will take any unique identifier, so changing the prefix to their own is the
+   simplest fix if Xcode complains that this one is unavailable.
+4. **Trust the developer certificate on the phone** the first time: Settings → General → VPN &
+   Device Management.
+5. **Permissions as they go.** Nothing is asked for at launch. Motion & Fitness, Location,
+   Microphone and Camera are each requested the first time a reading needs one, behind a card
+   saying why (R-54).
 
-### On-device verification — the real gate
+Worth saying out loud when you hand it over: **sound and light are estimates**, worked out from
+the microphone's signal level and the camera's exposure, because iOS exposes neither an ambient
+light sensor nor a thermometer. Both carry a "≈", and **Calibrate** in either tool will correct
+them against a real meter (R-75). "Phone heat" is the device's own thermal state, not the
+room's.
 
-The Simulator has almost no sensors, so everything Readout shows there comes from
-`MockSensorSource` (R-71). None of the following has been confirmed on hardware, and v1.0 in
-`docs/SPEC.md` §12 is not honest until it has:
+## 3. On-device verification — what makes the numbers trustworthy
+
+The Simulator has no sensors: everything Readout shows there comes from `MockSensorSource`
+(R-71). None of the following has been confirmed on hardware, and v1.0 in `docs/SPEC.md` §12 is
+not honest until it has:
 
 - [ ] Every one of the 19 readings produces a sensible value on a real iPhone.
 - [ ] The permission flow — each of the four prompts appears when it should, and a refusal
@@ -53,31 +73,27 @@ The Simulator has almost no sensors, so everything Readout shows there comes fro
       (R-10, R-66, R-72).
 - [ ] Thermal state leaves `nominal` under load.
 - [ ] A recording survives a swipe into Control Centre and stops on a real backgrounding.
+- [ ] Export a recording through the share sheet and open the CSV somewhere else (R-44, R-45).
 
-### App Store Connect
+When this list is done on a real phone, move `v1.0` in `docs/SPEC.md` §12 from Planned to
+Shipped — and not before.
 
-- [ ] **Privacy label: "Data Not Collected".** Nothing is gathered, nothing is sent (R-59).
-- [ ] Category: Utilities. Secondary: Education is a fair fit for the explainers.
-- [ ] Support URL — required. The GitHub repository's issues page will do.
-- [ ] Marketing URL, if any. Optional.
-- [ ] Description, keywords, promotional text.
-- [ ] **Screenshots.** `scripts/screenshots.sh` captures the Home Screen icon and the readings
-      grid from the Simulator, which is enough to lay out the listing — but those numbers are
-      synthetic. Retake on hardware before submitting.
-- [ ] Age rating: 4+.
-- [ ] Export compliance is answered by the Info.plist key; no further declaration is needed.
+## 4. If it ever did go to the App Store
 
-### Review notes worth writing
+Not planned, and nothing in the repository depends on it. Kept here so the decision does not
+have to be researched twice:
 
-Reviewers sometimes ask why a utility wants the camera and microphone. Say it plainly:
+- Signing: set `DEVELOPMENT_TEAM`, and register the bundle identifier in App Store Connect so
+  the two match exactly.
+- Privacy label: **"Data Not Collected"**. Nothing is gathered, nothing is sent (R-59).
+- Category: Utilities; Education is a fair secondary for the explainers. Age rating 4+.
+- A support URL is required; the repository's issues page would do.
+- Screenshots would have to be retaken on hardware — the ones in `docs/screenshots/` are
+  Simulator captures of synthetic data.
+- Export compliance is already answered by the Info.plist key.
+- Reviewers tend to ask why a utility wants the camera and microphone. The plain answer:
 
-> Readout is a sensor viewer. The camera is used only to read exposure metadata and estimate
-> illuminance in lux — no frame is captured, displayed as media, or saved. The microphone is
-> used only for level metering to estimate a decibel figure — no audio is recorded or saved.
-> The app makes no network requests.
-
-### TestFlight
-
-- [ ] Internal build, installed on at least one real device, every screen opened.
-- [ ] Run through §2's on-device list on that build, not on a debug build.
-- [ ] Only then move `v1.0` in `docs/SPEC.md` §12 from Planned to Shipped.
+  > Readout is a sensor viewer. The camera is used only to read exposure metadata and estimate
+  > illuminance in lux — no frame is captured, displayed as media, or saved. The microphone is
+  > used only for level metering to estimate a decibel figure — no audio is recorded or saved.
+  > The app makes no network requests.

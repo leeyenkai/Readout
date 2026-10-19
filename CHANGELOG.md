@@ -8,10 +8,17 @@ requirement IDs in [`docs/SPEC.md`](docs/SPEC.md).
 
 ## [Unreleased]
 
-The next milestone is **v1.0 — App Store**, and what it needs is on-device work: see
-[`docs/RELEASE.md`](docs/RELEASE.md) §2.
+The next milestone is **v1.0 — Verified on hardware**, and what it needs is on-device work: see
+[`docs/RELEASE.md`](docs/RELEASE.md) §3.
 
 ### Changed
+
+- **"Ready" means ready to share, not ready to submit.** There is no plan to put Readout on the
+  App Store, so `docs/RELEASE.md` is now about handing it to somebody: what they need to build
+  it, sign it with their own team and run it on their own iPhone, and what to tell them about
+  the estimates. The on-device checklist that decides whether the numbers can be trusted is
+  unchanged, and the App Store paperwork is kept in a section of its own in case that decision
+  ever changes. The v1.0 milestone and **Q-10** follow (SPEC §12, §13).
 
 - **The Light meter's preview says when there is nothing to show.** A device with no camera —
   the Simulator — drew an empty black panel beside a working reading, which looks like a fault
