@@ -280,6 +280,7 @@ struct CalibrationSheet: View {
             switch result {
             case .success(let offset):
                 settings.soundCalibrationOffset = offset
+                settled()
                 outcome = .applied("Sound now reads \(offset > 0 ? "+" : "")\(ValueFormatting.decimal(offset, digits: 1)) dB against the microphone's own level.")
             case .failure(let failure):
                 outcome = .failed(message(for: failure))
@@ -293,6 +294,7 @@ struct CalibrationSheet: View {
             switch result {
             case .success(let multiplier):
                 settings.lightCalibration = multiplier
+                settled()
                 outcome = .applied("Light now reads × \(ValueFormatting.decimal(multiplier, digits: 2)) of the camera's own estimate.")
             case .failure(let failure):
                 outcome = .failed(message(for: failure))
@@ -305,8 +307,16 @@ struct CalibrationSheet: View {
         case .sound: settings.soundCalibrationOffset = 0
         case .light: settings.lightCalibration = 1
         }
+        settled()
         reference = ""
         outcome = nil
+    }
+
+    /// Throws away the samples taken under the old correction. They are on a different scale
+    /// from the ones about to arrive, and averaging across the change would make a second
+    /// calibration taken straight after the first correct for a figure that was never shown.
+    private func settled() {
+        hub.clearHistory(target.reading)
     }
 
     private func message(for failure: Calibration.Failure) -> String {

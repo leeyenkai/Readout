@@ -11,6 +11,14 @@ requirement IDs in [`docs/SPEC.md`](docs/SPEC.md).
 The next milestone is **v1.0 — App Store**, and what it needs is on-device work: see
 [`docs/RELEASE.md`](docs/RELEASE.md) §2.
 
+### Fixed
+
+- **A second calibration taken straight after the first corrected for a figure that was never
+  shown.** The reading is averaged over five seconds, and those five seconds still held samples
+  taken under the old correction — a different scale. Applying or clearing a correction now
+  throws that history away, so the average restarts from what the phone is actually reporting
+  (R-75).
+
 ## [0.4.0] — 2026-10-19
 
 **Honest numbers, and the polish a release needs.** A calibration a user can actually carry
