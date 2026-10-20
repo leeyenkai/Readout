@@ -21,12 +21,13 @@ paperwork a submission would need, kept only in case that ever changes.
 | Permission strings | Four `INFOPLIST_KEY_NS*UsageDescription` entries, each saying what the sensor is for and that nothing leaves the phone |
 | Launch screen | `INFOPLIST_KEY_UILaunchScreen_Generation = YES` |
 | Orientation | Portrait only (`INFOPLIST_KEY_UISupportedInterfaceOrientations`), matching R-1 |
+| Background modes | `Config/Info.plist` — `location` and nothing else. Xcode's generator has no build setting for `UIBackgroundModes`, so that one key lives in a partial plist the generated keys are merged on top of. The microphone and camera deliberately have no mode (R-83) |
 | Screenshots | `docs/screenshots/` — Simulator captures, used in the README. The numbers in them are synthetic |
 | Licence | `LICENSE` (MIT) — anyone may take this and do what they like with it |
 | Contributing | `CONTRIBUTING.md`, and `AGENTS.md` for the full working agreement |
 | CI | `.github/workflows/ci.yml` — builds and runs the test suite on every push |
 | Warnings | `SWIFT_TREAT_WARNINGS_AS_ERRORS` and `GCC_TREAT_WARNINGS_AS_ERRORS` are on; the tree builds clean |
-| Export compliance | `INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO` — the app makes no network requests at all |
+| Export compliance | `INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO` — the app uses no encryption. It makes no network request of its own; the optional Apple Maps route view has iOS fetch map tiles over the system's own transport (R-81) |
 
 ## 2. Running it on an iPhone
 
@@ -72,7 +73,19 @@ not honest until it has:
       model identifier Settings names, so every phone of that model starts from it
       (R-10, R-66, R-72).
 - [ ] Thermal state leaves `nominal` under load.
-- [ ] A recording survives a swipe into Control Centre and stops on a real backgrounding.
+- [ ] A recording survives a swipe into Control Centre.
+- [ ] **Background recording (R-82, R-85), the biggest untested thing in the release.** Start a
+      session that includes Coordinates, lock the phone, and leave it for ten minutes. The blue
+      location indicator should be showing the whole time. Then come back and open the CSVs:
+      the rows should be continuous at the chosen rate, with no gap where the screen was off.
+      The Simulator shows gaps here because it has no fixes arriving to keep the process
+      scheduled, so this check is the only thing that can settle it.
+- [ ] A session with **no** location reading still stops and saves on backgrounding, and the
+      New Recording sheet said so beforehand (R-82).
+- [ ] A session including Sound level or Light stops on backgrounding whatever else it
+      records, and neither the orange nor the green indicator ever appears with the app in the
+      background (R-83).
+- [ ] Battery cost of a long background session — a journey's worth, not a few minutes.
 - [ ] Export a recording through the share sheet and open the CSV somewhere else (R-44, R-45).
 
 When this list is done on a real phone, move `v1.0` in `docs/SPEC.md` §12 from Planned to
@@ -96,4 +109,6 @@ have to be researched twice:
   > Readout is a sensor viewer. The camera is used only to read exposure metadata and estimate
   > illuminance in lux — no frame is captured, displayed as media, or saved. The microphone is
   > used only for level metering to estimate a decibel figure — no audio is recorded or saved.
-  > The app makes no network requests.
+  > The app makes no network requests of its own. Showing a recorded route on Apple Maps, which
+  > is off by default and chosen by the user, has iOS fetch map tiles; nothing measured or
+  > recorded is ever uploaded.

@@ -8,8 +8,65 @@ requirement IDs in [`docs/SPEC.md`](docs/SPEC.md).
 
 ## [Unreleased]
 
-The next milestone is **v1.0 — Verified on hardware**, and what it needs is on-device work: see
-[`docs/RELEASE.md`](docs/RELEASE.md) §3.
+**Logging a journey, and making the app yours.** What a recording is actually for — watching a
+session as it runs, and seeing where it went — plus the customisation Readout had none of, and
+the defects a full-source audit turned up. Built and tested in the Simulator; the on-device
+pass that gates v1.0 is still outstanding ([`docs/RELEASE.md`](docs/RELEASE.md) §3).
+
+### Added
+
+- **A recording of a journey carries on when you leave the app.** A session that records your
+  position keeps running if you lock the phone or switch apps, which is what logging a journey
+  actually requires. iOS shows the blue location indicator for as long as it does.
+
+  The rules come from the only mechanism iOS offers — Core Location's background updates — so
+  Readout says which one applies before the session starts rather than letting you find out at
+  the end of a train journey: a session needs a position reading (the sheet offers to add
+  Coordinates if it has none) and location has to be allowed. **The microphone and the camera
+  never run in the background at all**, by choice rather than limitation: `location` is the
+  only background mode Readout declares, so a session recording Sound level or Light stays
+  foreground-only however much location it also records. Readout asks for When In Use and
+  never Always (R-82, R-83, R-84, Q-12).
+
+  *Not yet verified on a physical iPhone.* The Simulator proves the session is no longer ended
+  by backgrounding, and that the entitlement is correctly declared — but it has no real fixes
+  arriving to keep the process scheduled, so it cannot show that sampling continues throughout
+  (R-85, SPEC §11.4).
+
+- **A running session can be watched.** Tapping the recording bar opens it: elapsed time,
+  sample count, size, how much of the limit is left, a live tile for every reading being
+  logged, and the route building up as the fixes arrive. Start a recording at the top of a
+  journey and this is the screen to leave open. It takes no sensor leases of its own, so
+  nothing runs because this screen is open that was not already being recorded (R-79, R-64).
+
+- **A recorded session shows its route.** Where a session logged Coordinates, the session view
+  draws the track with its two ends marked, its length, and a scale bar — plotted from the
+  session's own fixes in a local equirectangular projection, north up. It needs no network and
+  no map server, so it works with the radio off (R-76, R-59).
+
+- **Apple Maps, behind an opt-in.** The route can be shown on Apple Maps instead. It is off
+  until asked for, from a dialog that says what the trade is: Apple Maps downloads its tiles,
+  so this is the one thing in Readout that uses the network. No recording and no coordinate is
+  uploaded either way. Settings names the state — "Network requests: None" or "Apple Maps
+  only" — and can switch it back off (R-81).
+
+- **Themes.** Seven: System (the default, following the phone's own Light and Dark setting),
+  Dark, Elegant blue, Midnight blue, Sand, Graphite and Forest. A theme sets the colour behind
+  the readings and the accent on top; Liquid Glass does the rest, because every card, tab bar
+  and toolbar takes its own tint from what is behind it. Nothing is redrawn by hand (R-77,
+  R-46).
+
+- **An interface size,** six steps from Smaller to Largest, in Settings › Appearance. It is a
+  step along the system's own type scale rather than a magnification of the finished screen, so
+  Form rows, navigation titles, tab bar labels, tiles and the big readouts all grow together
+  and stay laid out properly — and it composes with the text size set in iOS Settings instead
+  of overruling it (R-78, R-52).
+
+- **The session limit is yours to raise.** Two hours and 100 MB are still the default, but a
+  journey is the obvious thing to log and plenty of journeys are longer: 6 hours, 12 hours, or
+  no clock at all, down to a 500 MB reserve Readout will not spend. A session will not start
+  without the room to finish, and a recording already running keeps the limit it started with
+  (R-80, Q-4).
 
 ### Changed
 
@@ -25,6 +82,42 @@ The next milestone is **v1.0 — Verified on hardware**, and what it needs is on
   rather than the absence of a camera (R-35, R-71).
 
 ### Fixed
+
+- **A location permission granted inside the app started nothing.** Core Location's request
+  returns before the prompt is answered, so the status Readout cached a moment later was still
+  "not determined" — and every location reading stayed behind its "Tap to allow" card, with the
+  provider never started, until the app was sent to the background and brought back. The
+  provider now reports the answer when it arrives and the hub starts what was waiting on it.
+  The v0.4.0 fix for this only ever covered the three permissions whose request can be awaited
+  (R-54, R-55).
+
+- **The compass's haptic tick landed halfway between north and east.** It followed the
+  *nearest* cardinal point, which changes as the heading crosses 45°, 135°, 225° and 315° — so
+  the tap meant to mark north was felt 45° away from it. It now fires on the point itself
+  (R-51, R-33).
+
+- **"About the same as" was claimed however far away the comparison was.** At 50% the battery
+  reading called itself about the same as the Low Power Mode prompt at 20%, and a phone sitting
+  still about the same as a car pulling away. A value now has to sit close to a reference —
+  measured along the bar, so one rule serves the logarithmic light scale too — or nothing is
+  claimed (P-2, R-27).
+
+- **The large readouts ignored Dynamic Type.** The dB figure on the Sound meter, the heading on
+  the compass and the value at the top of every detail view were fixed point sizes, so the one
+  number a reading exists to show was the only thing on screen that did not grow with the text
+  size. They now scale with it, capped so an accessibility size cannot push a 64-point figure
+  off the screen (R-52).
+
+- **The live chart copied its whole history on every redraw.** Reading a ten-second window
+  materialised all 3,000 samples in the ring and then filtered them — at display rate, for each
+  of three axes. It now walks back from the newest sample and stops at the edge of the window
+  (R-65).
+
+- **Copying a value tapped twice.** The haptic fired on the "Copied" badge fading out as well
+  as on the copy (R-31, R-51).
+
+- **The Welcome sheet's Start button answered taps outside itself.** Its padding was applied
+  outside the button style, so the tap target was taller than the glass capsule (R-73).
 
 - **A second calibration taken straight after the first corrected for a figure that was never
   shown.** The reading is averaged over five seconds, and those five seconds still held samples

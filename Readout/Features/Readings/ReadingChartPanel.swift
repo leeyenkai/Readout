@@ -12,6 +12,7 @@ struct ReadingChartPanel: View {
     let units: DisplayUnits
 
     @Environment(SensorHub.self) private var hub
+    @Environment(\.themeAccent) private var accent
     @State private var window: ChartWindow = .tenSeconds
     @State private var isPaused = false
     @State private var hiddenChannels: Set<Int> = []
@@ -33,7 +34,7 @@ struct ReadingChartPanel: View {
                                 y: .value(channel.name, point.value),
                                 series: .value("Channel", channel.name)
                             )
-                            .foregroundStyle(channel.axis?.colour ?? Color.accentColor)
+                            .foregroundStyle(channel.axis?.colour ?? accent)
                             .lineStyle(StrokeStyle(lineWidth: 2, dash: channel.axis?.dash ?? []))
                             .interpolationMethod(.monotone)
                         }
@@ -125,7 +126,7 @@ struct ReadingChartPanel: View {
                 } label: {
                     HStack(spacing: 5) {
                         Circle()
-                            .fill(channel.axis?.colour ?? Color.accentColor)
+                            .fill(channel.axis?.colour ?? accent)
                             .frame(width: 8, height: 8)
                         Text(channel.name)
                             .font(.caption.weight(.medium))

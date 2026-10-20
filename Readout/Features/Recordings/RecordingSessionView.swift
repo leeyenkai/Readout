@@ -21,6 +21,13 @@ struct RecordingSessionView: View {
             VStack(spacing: 16) {
                 header
 
+                // Where a session logged coordinates, the first thing worth seeing is where
+                // it went — a latitude and a longitude as two traces say almost nothing
+                // (R-76).
+                if !route.isEmpty {
+                    RoutePanel(route: route)
+                }
+
                 ForEach(session.tracks) { track in
                     TrackPanel(
                         track: track,
@@ -39,6 +46,7 @@ struct RecordingSessionView: View {
             .padding(.bottom, 32)
         }
         .scrollIndicators(.hidden)
+        .themedSurface()
         .navigationTitle(session.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -111,6 +119,11 @@ struct RecordingSessionView: View {
         .glassEffect(.regular, in: .rect(cornerRadius: 24))
     }
 
+    /// The fixes this session logged, if it logged any (R-76).
+    private var route: [RecordedCoordinate] {
+        series[.coordinates]?.coordinates() ?? []
+    }
+
     /// Reads the session's CSV files back for the charts. Parsing happens off the main actor
     /// because a long session is tens of thousands of rows.
     private func loadSeries() async {
@@ -134,6 +147,8 @@ private struct TrackPanel: View {
     let series: RecordedSeries
     let units: DisplayUnits
 
+    @Environment(\.themeAccent) private var accent
+
     private var descriptor: ReadingDescriptor { track.descriptor }
 
     var body: some View {
@@ -141,7 +156,7 @@ private struct TrackPanel: View {
             HStack(spacing: 8) {
                 Image(systemName: descriptor.symbol)
                     .font(.footnote)
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(.tint)
                 Text(descriptor.name)
                     .font(.headline)
                 Spacer(minLength: 0)
@@ -192,7 +207,7 @@ private struct TrackPanel: View {
                         y: .value(channel.name, presentation.convert(point.value)),
                         series: .value("Channel", channel.name)
                     )
-                    .foregroundStyle(channel.axis?.colour ?? Color.accentColor)
+                    .foregroundStyle(channel.axis?.colour ?? accent)
                     .lineStyle(StrokeStyle(lineWidth: 2, dash: channel.axis?.dash ?? []))
                     .interpolationMethod(.monotone)
                 }

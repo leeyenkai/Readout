@@ -19,6 +19,7 @@ struct ReadoutApp: App {
             hub: hub,
             store: RecordingStore(),
             context: store.container.mainContext,
+            settings: settings,
             isStorePersistent: store.isPersistent
         ))
         self.container = store.container

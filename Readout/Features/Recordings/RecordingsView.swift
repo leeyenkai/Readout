@@ -41,6 +41,7 @@ struct RecordingsView: View {
             .sheet(isPresented: $isShowingNewRecording) {
                 NewRecordingSheet()
             }
+            .themedSurface()
         }
     }
 
@@ -101,7 +102,7 @@ private struct EmptyRecordings: View {
             VStack(spacing: 16) {
                 Image(systemName: "record.circle")
                     .font(.system(size: 48))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(.tint)
                     .padding(.top, 40)
 
                 Text("No recordings yet")
@@ -139,7 +140,7 @@ private struct EmptyRecordings: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: symbol)
                 .font(.footnote)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(.tint)
                 .frame(width: 20)
             Text(text)
                 .font(.subheadline)

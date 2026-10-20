@@ -67,6 +67,42 @@ struct RecordedSeries: Sendable, Equatable {
         self.channels = channels
     }
 
+    /// The route a session recorded, as latitude and longitude pairs in the order they were
+    /// logged (R-76).
+    ///
+    /// The two channels are paired here rather than through `points(channel:)`, which thins
+    /// each channel on its own: were the two ever to come out at different lengths they would
+    /// be thinned at different strides, and the pairs would stop belonging to each other —
+    /// which on a map is not a rough line but a wrong one.
+    ///
+    /// A fix Core Location never produced is written as an empty cell and read back as NaN,
+    /// and a coordinate outside the globe is a corrupt row; both are dropped rather than
+    /// drawn.
+    func coordinates(latitude: Int = 0, longitude: Int = 1, limit: Int = 2_000) -> [RecordedCoordinate] {
+        guard channels.indices.contains(latitude), channels.indices.contains(longitude) else {
+            return []
+        }
+        let latitudes = channels[latitude]
+        let longitudes = channels[longitude]
+        let count = min(elapsed.count, min(latitudes.count, longitudes.count))
+        guard count > 0 else { return [] }
+
+        let step = max(1, count / max(1, limit))
+        var route: [RecordedCoordinate] = []
+        route.reserveCapacity(min(count, limit) + 1)
+        for index in Swift.stride(from: 0, to: count, by: step) {
+            let point = RecordedCoordinate(
+                index: index,
+                elapsed: elapsed[index],
+                latitude: latitudes[index],
+                longitude: longitudes[index]
+            )
+            guard point.isValid else { continue }
+            route.append(point)
+        }
+        return route
+    }
+
     /// Points for one channel, thinned to at most `limit` of them. A ten-minute recording at
     /// 50 Hz is 30,000 rows, which no 150-point-tall chart needs.
     func points(channel: Int, limit: Int = 400) -> [RecordedPoint] {
@@ -141,4 +177,23 @@ struct RecordedPoint: Sendable, Identifiable, Equatable {
     let value: Double
 
     var id: Double { elapsed }
+}
+
+/// One fix along a recorded route (R-76).
+struct RecordedCoordinate: Sendable, Identifiable, Equatable {
+    /// The row it came from, which is what makes it unique: two fixes a second apart can
+    /// easily share an elapsed time once the series has been thinned.
+    let index: Int
+    let elapsed: Double
+    let latitude: Double
+    let longitude: Double
+
+    var id: Int { index }
+
+    /// Whether this is a position at all. Core Location writes an unknown one as NaN, and
+    /// anything off the globe is a corrupt row.
+    var isValid: Bool {
+        latitude.isFinite && longitude.isFinite
+            && abs(latitude) <= 90 && abs(longitude) <= 180
+    }
 }

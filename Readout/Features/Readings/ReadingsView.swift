@@ -71,6 +71,7 @@ struct ReadingsView: View {
                     )
                 }
             }
+            .themedSurface()
         }
     }
 
@@ -94,7 +95,11 @@ struct ReadingsView: View {
                     Image(systemName: settings.isHidden(descriptor.id) ? "eye.slash.circle.fill" : "eye.circle.fill")
                         .font(.title3)
                         .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(settings.isHidden(descriptor.id) ? .secondary : Color.accentColor)
+                        // Erased, because a ternary between two different ShapeStyles has no
+                        // common type for the compiler to settle on.
+                        .foregroundStyle(settings.isHidden(descriptor.id)
+                            ? AnyShapeStyle(.secondary)
+                            : AnyShapeStyle(.tint))
                         .padding(8)
                 }
                 .contentShape(.rect(cornerRadius: 20))

@@ -105,6 +105,32 @@ struct ComparisonScaleTests {
         #expect(scale.nearest(to: 86)?.label == "Heavy traffic")
         #expect(scale.nearest(to: 86)?.caution == true)
     }
+
+    /// "About the same as" has to be earned. Returning the nearest reference however far away
+    /// it was had the battery reading call 50% about the same as the Low Power Mode prompt at
+    /// 20%, and a phone sitting still about the same as a car pulling away (P-2).
+    @Test("A value close to nothing on the bar is compared to nothing")
+    func nothingToCompareTo() throws {
+        let battery = try #require(ReadingCatalog.descriptor(.battery).comparisons)
+        #expect(battery.nearest(to: 50) == nil)
+        #expect(battery.nearest(to: 20)?.label == "Low Power Mode prompt")
+
+        let acceleration = try #require(ReadingCatalog.descriptor(.acceleration).comparisons)
+        #expect(acceleration.nearest(to: 0.01) == nil)
+        #expect(acceleration.nearest(to: 1)?.label == "Gravity at rest")
+
+        #expect(battery.nearest(to: .nan) == nil)
+    }
+
+    /// Closeness is measured along the bar, so a scale spanning five orders of magnitude gets
+    /// the same judgement as one spanning a hundred units.
+    @Test("Closeness is judged along the bar, logarithmic ones included")
+    func closenessFollowsTheBar() throws {
+        let light = try #require(ReadingCatalog.descriptor(.light).comparisons)
+        #expect(light.nearest(to: 350)?.label == "Office")
+        // Two orders of magnitude away from any reference on a log scale is not "about".
+        #expect(light.nearest(to: 8_000) == nil)
+    }
 }
 
 @Suite("Spirit level geometry")

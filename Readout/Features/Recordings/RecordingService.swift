@@ -22,6 +22,9 @@ final class RecordingService {
     private(set) var elapsed: TimeInterval = 0
     /// What the session has written so far, for the limit and the bar's warning (Q-4).
     private(set) var byteCount = 0
+    /// The journey so far, where the session is logging coordinates, for the live view's
+    /// route (R-76, R-79). Thinned as it grows; the CSV keeps every fix regardless.
+    private(set) var route: [RecordedCoordinate] = []
 
     /// Set when a recording could not start, was cut short, or could not be saved.
     var failure: RecordingFailure?
@@ -41,6 +44,9 @@ final class RecordingService {
     private var sessionIdentifier: UUID?
     private var timer: Timer?
     private var ticksSinceCheckpoint = 0
+    /// Fixes between the ones the drawn route keeps. Doubles each time it fills up.
+    private var routeStride = 1
+    private var routeFixesSeen = 0
 
     /// How often the bar's numbers are refreshed and the row buffers are flushed.
     private static let tickInterval: TimeInterval = 0.5
@@ -48,15 +54,34 @@ final class RecordingService {
     /// metadata a recovered session is rebuilt from, so a crash costs at most this much of it.
     private static let ticksPerCheckpoint = 4
 
-    /// A session stops itself at whichever comes first, rather than filling the device
-    /// (SPEC §8.1, Q-4). A three-axis reading at 50 Hz writes roughly 12 MB an hour.
-    static let maximumBytes = 100 * 1_024 * 1_024
-    static let maximumDuration: TimeInterval = 2 * 60 * 60
+    /// How many fixes the drawn route holds before it is halved.
+    private static let maximumRouteFixes = 2_000
 
-    init(hub: SensorHub, store: RecordingStore, context: ModelContext, isStorePersistent: Bool = true) {
+    /// The limit the running session was started under, so changing the setting mid-recording
+    /// cannot move the goalposts under a session already in progress (Q-4, R-80).
+    private(set) var limit: RecordingLimit = .default
+
+    /// What will happen to the running session when Readout leaves the foreground (R-82).
+    /// Worked out once, as the session starts, from what it records and what it is allowed.
+    private(set) var backgroundVerdict: BackgroundRecording.Verdict = .stopsWithoutLocation
+    /// The volume's free space, re-read occasionally rather than on every tick: it is a
+    /// `resourceValues` call, and the open-ended limit is the only thing that needs it.
+    private var availableBytes: Int64?
+
+    /// Where the chosen limit is read from when a session starts.
+    private let settings: AppSettings
+
+    init(
+        hub: SensorHub,
+        store: RecordingStore,
+        context: ModelContext,
+        settings: AppSettings,
+        isStorePersistent: Bool = true
+    ) {
         self.hub = hub
         self.store = store
         self.context = context
+        self.settings = settings
         self.isStorePersistent = isStorePersistent
         hub.sampleObserver = { [weak self] reading, sample in
             self?.receive(reading, sample)
@@ -64,6 +89,19 @@ final class RecordingService {
     }
 
     var isRecording: Bool { startedAt != nil }
+
+    /// Whether the running session survives Readout going to the background (R-82).
+    var continuesInBackground: Bool { isRecording && backgroundVerdict.continuesInBackground }
+
+    /// What would happen to a session recording `readings`, for the New Recording sheet to
+    /// say before anything is started.
+    func backgroundVerdict(for readings: some Collection<ReadingID>) -> BackgroundRecording.Verdict {
+        guard hub.canRecordInBackground else { return .stopsWithoutLocation }
+        return BackgroundRecording.verdict(
+            for: readings,
+            isLocationGranted: hub.permissions.status(of: .locationWhenInUse).isGranted
+        )
+    }
 
     func isRecording(_ reading: ReadingID) -> Bool {
         isRecording && readings.contains(reading)
@@ -85,10 +123,15 @@ final class RecordingService {
                 """))
             return
         }
-        if let available = store.availableBytes(), available < Int64(Self.maximumBytes) {
+        // The limit is fixed for the life of the session: changing the setting while one runs
+        // should not move the goalposts under it (Q-4, R-80).
+        let limit = settings.recordingLimit
+        let available = store.availableBytes()
+        if let available, available < Int64(limit.minimumFreeBytes) {
             report(.init(kind: .couldNotStart, message: """
-                There is not enough free space on this iPhone for a recording. Readout keeps \
-                room for \(Self.maximumBytes.formatted(.byteCount(style: .file))).
+                There is not enough free space on this iPhone for a recording. A \
+                \(limit.title.lowercased()) session needs room for \
+                \(limit.minimumFreeBytes.formatted(.byteCount(style: .file))).
                 """))
             return
         }
@@ -115,17 +158,26 @@ final class RecordingService {
         sessionIdentifier = identifier
         startedAt = start
         self.rate = rate
+        self.limit = limit
+        backgroundVerdict = backgroundVerdict(for: ordered)
+        self.availableBytes = available
         self.readings = ordered
         sampleCount = 0
         elapsed = 0
         byteCount = 0
         ticksSinceCheckpoint = 0
+        route = []
+        routeStride = 1
+        routeFixesSeen = 0
         writeCheckpoint()
         for reading in ordered {
             leases.append(hub.activate(reading, rate: rate.activationRate))
         }
         // The screen stays awake for as long as the recording runs (R-40).
         UIApplication.shared.isIdleTimerDisabled = true
+        // And, where the session qualifies, Core Location holds the app alive past the point
+        // the screen goes off (R-82).
+        hub.setBackgroundLocationUpdates(backgroundVerdict.continuesInBackground)
         startTicking()
     }
 
@@ -140,6 +192,9 @@ final class RecordingService {
         timer?.invalidate()
         timer = nil
         UIApplication.shared.isIdleTimerDisabled = false
+        // Given back the moment the recording ends: holding it would keep the app alive, and
+        // the blue indicator lit, for a user who is no longer recording anything (R-82).
+        hub.setBackgroundLocationUpdates(false)
         leases.forEach(hub.release)
         leases = []
 
@@ -179,6 +234,8 @@ final class RecordingService {
         readings = []
         elapsed = 0
         byteCount = 0
+        route = []
+        backgroundVerdict = .stopsWithoutLocation
     }
 
     /// Keeps the most serious thing that went wrong. A session that had to be discarded
@@ -226,6 +283,33 @@ final class RecordingService {
         guard let startedAt, sample.time >= startedAt else { return }
         guard let writer = writers.first(where: { $0.reading == reading }) else { return }
         writer.receive(sample)
+        if reading == .coordinates {
+            trackRoute(sample, startedAt: startedAt)
+        }
+    }
+
+    /// Keeps the journey so far, so the live view can draw it as it happens (R-76, R-79).
+    ///
+    /// Thinned as it grows, the same way a finished session's series is: a route being
+    /// watched on screen wants the shape of the journey, not every fix of a twelve-hour one.
+    /// The CSV on disk keeps all of them regardless — this is only what is drawn.
+    private func trackRoute(_ sample: SensorSample, startedAt: Date) {
+        guard sample.values.count >= 2 else { return }
+        defer { routeFixesSeen += 1 }
+        guard routeFixesSeen % routeStride == 0 else { return }
+
+        let fix = RecordedCoordinate(
+            index: routeFixesSeen,
+            elapsed: sample.time.timeIntervalSince(startedAt),
+            latitude: sample.values[0],
+            longitude: sample.values[1]
+        )
+        guard fix.isValid else { return }
+        route.append(fix)
+        if route.count >= Self.maximumRouteFixes {
+            route = stride(from: 0, to: route.count, by: 2).map { route[$0] }
+            routeStride *= 2
+        }
     }
 
     private func startTicking() {
@@ -252,24 +336,26 @@ final class RecordingService {
         if ticksSinceCheckpoint >= Self.ticksPerCheckpoint {
             ticksSinceCheckpoint = 0
             writeCheckpoint()
+            // Only the open-ended limit depends on the volume, and only it is worth
+            // re-reading: another app can fill the disk while a long session runs.
+            if limit == .untilStorageRunsOut {
+                availableBytes = store.availableBytes()
+            }
         }
 
-        if byteCount >= Self.maximumBytes {
-            stop(interrupted: false, limit: """
-                This recording reached Readout's \(Self.maximumBytes.formatted(.byteCount(style: .file))) \
-                limit and was saved there.
-                """)
-        } else if elapsed >= Self.maximumDuration {
-            stop(interrupted: false, limit: "This recording reached Readout's two-hour limit and was saved there.")
+        if let reason = limit.reasonToStop(
+            elapsed: elapsed,
+            byteCount: byteCount,
+            availableBytes: availableBytes
+        ) {
+            stop(interrupted: false, limit: reason)
         }
     }
 
-    /// How full the session is against whichever limit it will reach first, 0 to 1.
+    /// How full the session is against whichever limit it will reach first, 0 to 1 (Q-4).
     var limitFraction: Double {
         guard isRecording else { return 0 }
-        let bySize = Double(byteCount) / Double(Self.maximumBytes)
-        let byTime = elapsed / Self.maximumDuration
-        return min(1, max(bySize, byTime))
+        return limit.fraction(elapsed: elapsed, byteCount: byteCount, availableBytes: availableBytes)
     }
 
     private func writeCheckpoint() {

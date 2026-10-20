@@ -125,7 +125,7 @@ struct ComparisonBar: View {
 
                 if let value {
                     Circle()
-                        .fill(Color.accentColor)
+                        .fill(.tint)
                         .frame(width: 16, height: 16)
                         .overlay(Circle().stroke(.background, lineWidth: 2))
                         .offset(x: max(0, geometry.size.width * scale.position(of: value) - 8))
@@ -186,7 +186,7 @@ struct PermissionCard: View {
         VStack(spacing: 12) {
             Image(systemName: permission.symbol)
                 .font(.largeTitle)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(.tint)
             Text(permission.why)
                 .font(.subheadline)
                 .multilineTextAlignment(.center)
@@ -233,7 +233,7 @@ struct ProximityStartCard: View {
         VStack(spacing: 12) {
             Image(systemName: descriptor.symbol)
                 .font(.largeTitle)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(.tint)
             Text("Running the proximity sensor switches the screen off while something covers it, so it only runs while you are testing.")
                 .font(.subheadline)
                 .multilineTextAlignment(.center)

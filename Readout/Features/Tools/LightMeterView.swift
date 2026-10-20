@@ -6,6 +6,7 @@ import SwiftUI
 struct LightMeterView: View {
     @Environment(SensorHub.self) private var hub
     @Environment(AppSettings.self) private var settings
+    @Environment(\.themeAccent) private var accent
 
     @State private var lease: SensorLease?
     @State private var isHeld = false
@@ -46,6 +47,7 @@ struct LightMeterView: View {
             .padding(.bottom, 24)
         }
         .scrollIndicators(.hidden)
+        .themedSurface()
         .navigationTitle("Light meter")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -84,7 +86,7 @@ struct LightMeterView: View {
         VStack(spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(lux.map { "≈" + ValueFormatting.decimal($0, digits: 0) } ?? "—")
-                    .font(.system(size: 58, weight: .semibold, design: .rounded))
+                    .readoutValue(size: 58)
                     .monospacedDigit()
                     .contentTransition(.numericText())
                     .lineLimit(1)
@@ -95,7 +97,7 @@ struct LightMeterView: View {
             }
             Text(isHeld ? "Held" : "Camera estimate")
                 .font(.caption)
-                .foregroundStyle(isHeld ? Color.accentColor : Color.secondary)
+                .foregroundStyle(isHeld ? accent : Color.secondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 18)

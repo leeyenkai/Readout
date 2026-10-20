@@ -30,13 +30,23 @@ final class PermissionCoordinator {
     }
 
     func status(of permission: SensorPermission) -> PermissionStatus {
-        statuses[permission] ?? .notDetermined
+        // Location is read from the provider rather than from the cache. Its request cannot
+        // be awaited — `requestWhenInUseAuthorization()` returns before the user has answered
+        // — so a cache refreshed straight after asking records the old `notDetermined`, and
+        // every location reading stayed behind its "Tap to allow" card until the app was
+        // backgrounded and brought back (R-54, R-55).
+        if permission == .locationWhenInUse, let locationProvider {
+            return locationProvider.permissionStatus
+        }
+        return statuses[permission] ?? .notDetermined
     }
 
     func refresh() {
         statuses[.motionFitness] = Self.motionStatus()
         statuses[.microphone] = Self.microphoneStatus()
         statuses[.camera] = Self.cameraStatus()
+        // Only a fallback for when no provider has been attached yet; `status(of:)` reads the
+        // provider directly once there is one.
         statuses[.locationWhenInUse] = locationProvider?.permissionStatus ?? Self.locationStatus()
     }
 

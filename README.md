@@ -13,7 +13,14 @@ live chart, min/max/average, a plain-English explainer and a scale of everyday c
 ("60 dB is a conversation; 85 dB is heavy traffic"). It adds four instruments: a spirit level,
 a compass, a sound meter and a light meter.
 
-It is a hobby project. No ads, no in-app purchases, no accounts, and no network requests at all.
+It records too: pick the readings you want, start a session at the top of a journey and watch
+it as it runs, then keep it, chart it, see the route it took and export it as CSV. Seven themes
+and an interface size make it yours.
+
+It is a hobby project. No ads, no in-app purchases, no accounts, and nothing it measures ever
+leaves the phone. Readout makes no network request of its own; the single optional feature that
+causes one — showing a recorded route on Apple Maps rather than plotting it offline — is off
+until you turn it on, and Settings says which state you are in.
 
 | | | | |
 | --- | --- | --- | --- |
@@ -25,10 +32,18 @@ It is a hobby project. No ads, no in-app purchases, no accounts, and no network 
 
 ## Status
 
-**v0.4.0 — honest estimates and polish.** Every reading, every instrument, recording and CSV
-export, the app icon, and a calibration you can carry out against a reference meter. It is
-ready to hand to somebody: clone it, set your own signing team, and it runs on your iPhone.
-There is no plan to put it on the App Store.
+**v0.5.0 — logging a journey, and making it yours.** Every reading, every instrument, recording
+and CSV export, the app icon, a calibration you can carry out against a reference meter — and
+now a running session you can watch, the route a session logged, a session limit long enough
+for a real journey, seven themes and an interface size. It is ready to hand to somebody: clone
+it, set your own signing team, and it runs on your iPhone. There is no plan to put it on the
+App Store.
+
+A recording that includes your position carries on when you lock the phone or switch apps, so
+a journey survives going in a pocket; iOS shows the blue location indicator while it does. A
+session without a location reading cannot — there is no mechanism for it — and the app says
+which applies before you start. The microphone and the camera never run in the background at
+all. None of this is verified on a physical iPhone yet.
 
 **Nothing has been verified on physical hardware yet.** Everything here was built and run in
 the Simulator, where the numbers come from a synthetic source. What is left before 1.0 is the
@@ -95,7 +110,7 @@ stays on the device and nothing else changes.
 
 ## Privacy
 
-Everything is measured and stored on the phone. The app makes no network requests and contains
+Everything is measured and stored on the phone. The app makes no network request of its own and contains
 no analytics or crash-reporting SDKs, so there is nothing for a privacy label to declare — the
 privacy manifest in the bundle says exactly that.
 Microphone audio and camera frames are read in memory to derive a level and are never saved.

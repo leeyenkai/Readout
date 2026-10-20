@@ -45,10 +45,31 @@ struct NewRecordingSheet: View {
                     }
                 }
 
-                Section {
-                    Text("Recording keeps going while Readout is open. Leaving the app stops the session and saves what it has.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                // What happens when the phone goes in a pocket, said before the session starts
+                // rather than discovered at the end of a journey (R-82).
+                if !chosen.isEmpty {
+                    Section {
+                        let verdict = recorder.backgroundVerdict(for: chosen)
+                        Label {
+                            Text(verdict.summary)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        } icon: {
+                            Image(systemName: verdict.symbol)
+                                .foregroundStyle(verdict.continuesInBackground
+                                    ? AnyShapeStyle(.tint)
+                                    : AnyShapeStyle(.secondary))
+                        }
+
+                        if verdict == .stopsWithoutLocation, canAddCoordinates {
+                            Button("Add Coordinates so it keeps running") {
+                                chosen.insert(.coordinates)
+                            }
+                            .font(.footnote.weight(.semibold))
+                        }
+                    } header: {
+                        Text("Leaving the app")
+                    }
                 }
             }
             .navigationTitle("New Recording")
@@ -71,6 +92,7 @@ struct NewRecordingSheet: View {
                 Text(refusalMessage)
             }
             .onAppear(perform: preselectOnce)
+            .themedSurface()
         }
     }
 
@@ -86,7 +108,7 @@ struct NewRecordingSheet: View {
             HStack(spacing: 12) {
                 Image(systemName: descriptor.symbol)
                     .font(.footnote)
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(.tint)
                     .frame(width: 22)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(descriptor.name)
@@ -108,7 +130,7 @@ struct NewRecordingSheet: View {
                 Spacer(minLength: 0)
                 Image(systemName: isChosen ? "checkmark.circle.fill" : "circle")
                     .font(.body)
-                    .foregroundStyle(isChosen ? Color.accentColor : Color.secondary)
+                    .foregroundStyle(isChosen ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
             }
             // Without this the gap between the name and the tick is not a tap target, and
             // half the row does nothing.
@@ -160,6 +182,12 @@ struct NewRecordingSheet: View {
             return "None of the chosen readings can run on this iPhone."
         }
         return "Readout needs \(names) access to record what you chose. You can allow it in Settings."
+    }
+
+    /// Whether offering to add Coordinates would help: on a device that cannot locate itself
+    /// at all, the offer would be a button that changes nothing (R-7).
+    private var canAddCoordinates: Bool {
+        hub.availability(.coordinates) != .unavailable && !chosen.contains(.coordinates)
     }
 
     private func preselectOnce() {

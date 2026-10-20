@@ -35,9 +35,11 @@ struct WelcomeSheet: View {
                     card(
                         symbol: "hand.raised",
                         title: "Nothing leaves this iPhone",
-                        body: "No accounts, no analytics, no network requests at all. Microphone audio and camera "
+                        body: "No accounts, no analytics, and nothing Readout measures ever leaves this iPhone. Microphone audio and camera "
                             + "frames are read in memory to work out a level and are never saved. A sensor runs "
-                            + "only while you are looking at it or recording it."
+                            + "only while you are looking at it or recording it. Readout makes no network request "
+                            + "of its own; showing a recorded route on Apple Maps is the one thing that would, and "
+                            + "it stays off until you ask for it."
                     )
                 }
                 .padding(.horizontal, 20)
@@ -47,14 +49,22 @@ struct WelcomeSheet: View {
             .navigationTitle("Welcome")
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) {
-                Button("Start") { dismiss() }
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .buttonStyle(.glassProminent)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 8)
+                // The padding belongs inside the button, on the label: applied outside it,
+                // it enlarged the tap target without enlarging the glass capsule, so the
+                // control was thinner than the area that answered a tap.
+                Button {
+                    dismiss()
+                } label: {
+                    Text("Start")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                }
+                .buttonStyle(.glassProminent)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 8)
             }
+            .themedSurface()
         }
     }
 
@@ -62,7 +72,7 @@ struct WelcomeSheet: View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: symbol)
                 .font(.title2)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(.tint)
                 .frame(width: 34)
                 .accessibilityHidden(true)
 

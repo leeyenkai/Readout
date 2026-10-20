@@ -24,6 +24,11 @@ final class AppSettings {
         readingOrder = (defaults.array(forKey: Key.readingOrder) as? [String] ?? [])
             .compactMap(ReadingID.init(rawValue:))
         hasSeenWelcome = defaults.object(forKey: Key.hasSeenWelcome) as? Bool ?? false
+        themeIdentifier = defaults.decoded(ThemeID.self, forKey: Key.theme) ?? .system
+        interfaceScale = (defaults.object(forKey: Key.interfaceScale) as? Int)
+            .flatMap(InterfaceScale.init(rawValue:)) ?? .default
+        recordingLimit = defaults.decoded(RecordingLimit.self, forKey: Key.recordingLimit) ?? .default
+        usesAppleMaps = defaults.object(forKey: Key.usesAppleMaps) as? Bool ?? false
     }
 
     var unitSystem: UnitSystem { didSet { defaults.encode(unitSystem, forKey: Key.unitSystem) } }
@@ -53,6 +58,43 @@ final class AppSettings {
     /// Set once the first-run explainer has been dismissed (R-73).
     var hasSeenWelcome: Bool {
         didSet { defaults.set(hasSeenWelcome, forKey: Key.hasSeenWelcome) }
+    }
+
+    /// The chosen look (R-77). Stored as the identifier; `theme` resolves it, so a raw value
+    /// this version does not know falls back to `.system` instead of failing.
+    var themeIdentifier: ThemeID {
+        didSet { defaults.encode(themeIdentifier, forKey: Key.theme) }
+    }
+
+    var theme: AppTheme { ThemeCatalog.theme(themeIdentifier) }
+
+    /// How large the interface is drawn, on top of the phone's own text size (R-78).
+    var interfaceScale: InterfaceScale {
+        didSet { defaults.set(interfaceScale.rawValue, forKey: Key.interfaceScale) }
+    }
+
+    /// How long a recording may run before it stops itself (Q-4, R-80).
+    var recordingLimit: RecordingLimit {
+        didSet { defaults.encode(recordingLimit, forKey: Key.recordingLimit) }
+    }
+
+    /// Whether a recorded route may be shown on Apple Maps (R-76).
+    ///
+    /// Off until the user says otherwise, and the only setting in Readout that lets anything
+    /// reach the network: Apple Maps fetches its own tiles. With it off, the route is plotted
+    /// from the session's own fixes and the app still makes no request at all (R-59).
+    var usesAppleMaps: Bool {
+        didSet { defaults.set(usesAppleMaps, forKey: Key.usesAppleMaps) }
+    }
+
+    /// Whether anything on the Appearance screen has been changed, so it can offer to undo it.
+    var hasAppearanceChanges: Bool {
+        themeIdentifier != .system || interfaceScale != .default
+    }
+
+    func resetAppearance() {
+        themeIdentifier = .system
+        interfaceScale = .default
     }
 
     var displayUnits: DisplayUnits {
@@ -133,6 +175,10 @@ final class AppSettings {
         static let hiddenReadings = "settings.hiddenReadings"
         static let readingOrder = "settings.readingOrder"
         static let hasSeenWelcome = "settings.hasSeenWelcome"
+        static let theme = "settings.theme"
+        static let interfaceScale = "settings.interfaceScale"
+        static let recordingLimit = "settings.recordingLimit"
+        static let usesAppleMaps = "settings.usesAppleMaps"
     }
 }
 

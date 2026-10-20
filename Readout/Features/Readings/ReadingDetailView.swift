@@ -36,6 +36,7 @@ struct ReadingDetailView: View {
             .padding(.bottom, 32)
         }
         .scrollIndicators(.hidden)
+        .themedSurface()
         .navigationTitle(descriptor.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -130,8 +131,10 @@ private struct LiveValuePanel: View {
         .onLongPressGesture {
             copy()
         }
-        .sensoryFeedback(trigger: didCopy) { _, _ in
-            settings.hapticsEnabled ? .success : nil
+        // Only as the value is copied. Keying on any change of `didCopy` tapped a second time
+        // as the "Copied" badge faded out, which is not an event worth feeling.
+        .sensoryFeedback(trigger: didCopy) { _, copied in
+            settings.hapticsEnabled && copied ? .success : nil
         }
         .overlay(alignment: .topTrailing) {
             if didCopy {
@@ -153,7 +156,7 @@ private struct LiveValuePanel: View {
         switch descriptor.kind {
         case .discrete:
             Text(sample.state ?? "—")
-                .font(.system(size: 44, weight: .semibold, design: .rounded))
+                .readoutValue(size: 44)
                 .contentTransition(.numericText())
         case .coordinates:
             Text(coordinateText(sample))
@@ -201,7 +204,7 @@ private struct LiveValuePanel: View {
     private func singleValue(channel: ReadingChannel, value: Double?) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             Text((descriptor.estimateNote == nil ? "" : "≈") + formatted(value, channel: channel).text)
-                .font(.system(size: 46, weight: .semibold, design: .rounded))
+                .readoutValue(size: 46)
                 .monospacedDigit()
                 .contentTransition(.numericText())
                 .minimumScaleFactor(0.5)

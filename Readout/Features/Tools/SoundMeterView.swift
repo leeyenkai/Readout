@@ -6,6 +6,7 @@ import SwiftUI
 struct SoundMeterView: View {
     @Environment(SensorHub.self) private var hub
     @Environment(AppSettings.self) private var settings
+    @Environment(\.themeAccent) private var accent
 
     @State private var lease: SensorLease?
     @State private var isCalibrating = false
@@ -44,6 +45,7 @@ struct SoundMeterView: View {
             .padding(.bottom, 24)
         }
         .scrollIndicators(.hidden)
+        .themedSurface()
         .navigationTitle("Sound meter")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -83,12 +85,12 @@ struct SoundMeterView: View {
         VStack(spacing: 6) {
             Image(systemName: "waveform")
                 .font(.title)
-                .foregroundStyle(isLoud ? Color.orange : Color.accentColor)
+                .foregroundStyle(isLoud ? Color.orange : accent)
                 .symbolEffect(.variableColor.iterative, isActive: current != nil)
 
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(current.map { "≈" + ValueFormatting.decimal($0, digits: 0) } ?? "—")
-                    .font(.system(size: 64, weight: .semibold, design: .rounded))
+                    .readoutValue(size: 64)
                     .monospacedDigit()
                     .contentTransition(.numericText())
                     .foregroundStyle(isLoud ? Color.orange : Color.primary)

@@ -61,6 +61,12 @@ final class SensorHub {
             self?.receive(reading, sample)
         }
         permissions.locationProvider = location
+        // Location's answer arrives after the request returns, so the provider reports it
+        // back and whatever was leased in the meantime starts then (R-54).
+        location.onAuthorizationChange = { [weak self] in
+            self?.permissions.refresh()
+            self?.restartLeases()
+        }
         for reading in ReadingID.allCases {
             #if targetEnvironment(simulator)
             // The Simulator has none of these sensors, so every reading comes from the
@@ -119,6 +125,15 @@ final class SensorHub {
 
     func isActive(_ reading: ReadingID) -> Bool {
         running[reading] != nil
+    }
+
+    /// Whether this build can keep a recording running in the background at all (R-82).
+    var canRecordInBackground: Bool { LocationProvider.hasLocationBackgroundMode }
+
+    /// Lets Core Location hold the app alive for a running recording, and takes it away again
+    /// when that recording stops (R-82). Only `RecordingService` calls this.
+    func setBackgroundLocationUpdates(_ enabled: Bool) {
+        location.allowsBackgroundUpdates = enabled
     }
 
     /// Stops every sensor without forgetting who asked for it, so the foreground can resume

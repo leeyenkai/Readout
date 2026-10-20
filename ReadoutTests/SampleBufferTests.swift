@@ -76,6 +76,38 @@ struct SampleBufferTests {
         #expect(recent.allSatisfy { $0.time >= now.addingTimeInterval(-2) })
     }
 
+    /// The window is read by walking the ring backwards from the newest sample, rather than
+    /// materialising all 3,000 of them and filtering — the live chart asks for it on every
+    /// redraw. The wrap is where that walk can go wrong, so it is worth its own case.
+    @Test("A window is right once the ring has wrapped")
+    func windowAcrossTheWrap() {
+        var buffer = SampleBuffer(capacity: 4)
+        let start = Date(timeIntervalSince1970: 1_000)
+        for index in 0..<10 {
+            buffer.append(SensorSample(time: start.addingTimeInterval(Double(index)), values: [Double(index)]))
+        }
+        let end = start.addingTimeInterval(9)
+
+        // The ring holds the last four: 6, 7, 8, 9.
+        #expect(buffer.samples.map { $0.values[0] } == [6, 7, 8, 9])
+        #expect(buffer.samples(in: 2, endingAt: end).map { $0.values[0] } == [7, 8, 9])
+        #expect(buffer.samples(in: 100, endingAt: end).map { $0.values[0] } == [6, 7, 8, 9])
+        #expect(buffer.samples(in: 0.5, endingAt: end).map { $0.values[0] } == [9])
+    }
+
+    @Test("A window of an empty buffer is empty, not a crash")
+    func windowOfNothing() {
+        #expect(SampleBuffer().samples(in: 10).isEmpty)
+    }
+
+    @Test("A window ending before anything arrived holds nothing")
+    func windowBeforeTheFirstSample() {
+        var buffer = SampleBuffer()
+        let start = Date(timeIntervalSince1970: 1_000)
+        buffer.append(SensorSample(time: start, values: [1]))
+        #expect(buffer.samples(in: 5, endingAt: start.addingTimeInterval(-100)).isEmpty)
+    }
+
     @Test("Magnitude is the length of the first three channels")
     func magnitude() {
         let sample = SensorSample(values: [3, 4, 0])

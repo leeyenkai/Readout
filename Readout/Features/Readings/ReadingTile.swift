@@ -20,7 +20,7 @@ struct ReadingTile: View {
             HStack(spacing: 6) {
                 Image(systemName: descriptor.symbol)
                     .font(.footnote)
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(.tint)
                 Text(descriptor.name)
                     .font(.footnote.weight(.medium))
                     .foregroundStyle(.secondary)
@@ -161,6 +161,8 @@ private struct TileState: View {
 struct Sparkline: View {
     let values: [Double]
 
+    @Environment(\.themeAccent) private var accent
+
     var body: some View {
         GeometryReader { geometry in
             Path { path in
@@ -182,7 +184,7 @@ struct Sparkline: View {
                     }
                 }
             }
-            .stroke(Color.accentColor.opacity(0.7), style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+            .stroke(accent.opacity(0.7), style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
         }
         .accessibilityHidden(true)
     }

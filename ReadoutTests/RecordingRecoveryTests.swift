@@ -26,10 +26,12 @@ struct RecordingRecoveryTests {
             for: schema,
             configurations: ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         )
+        let settings = AppSettings(defaults: throwawayDefaults())
         let service = RecordingService(
-            hub: SensorHub(settings: AppSettings(defaults: throwawayDefaults())),
+            hub: SensorHub(settings: settings),
             store: store,
             context: container.mainContext,
+            settings: settings,
             isStorePersistent: isStorePersistent
         )
         // The container is handed back so the test keeps it alive: let it go out of scope and

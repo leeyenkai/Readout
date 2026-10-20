@@ -133,6 +133,7 @@ struct CalibrationSheet: View {
                 hub.release(lease)
                 lease = nil
             }
+            .themedSurface()
         }
     }
 
@@ -142,7 +143,7 @@ struct CalibrationSheet: View {
         Section {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(measured.map { "≈" + ValueFormatting.decimal($0, digits: digits) } ?? "—")
-                    .font(.system(size: 44, weight: .semibold, design: .rounded))
+                    .readoutValue(size: 44)
                     .monospacedDigit()
                     .contentTransition(.numericText())
                     .lineLimit(1)

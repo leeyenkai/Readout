@@ -11,6 +11,14 @@ final class LocationProvider: NSObject, SensorProvider {
     /// Set from Settings; magnetic north needs no location permission (SPEC §3, reading 5).
     var usesTrueNorth = true
 
+    /// Called when iOS reports a new authorisation state. Set by `SensorHub`, which uses it
+    /// to start the readings that were already leased but waiting on the answer (R-54).
+    ///
+    /// Core Location is the one permission whose request cannot be awaited:
+    /// `requestWhenInUseAuthorization()` returns long before the prompt is dismissed, so the
+    /// caller has nothing to wait for and must be told afterwards instead.
+    var onAuthorizationChange: (() -> Void)?
+
     private(set) var permissionStatus: PermissionStatus = .notDetermined
     /// iOS asks the user to wave the phone when this is poor (R-69).
     private(set) var headingAccuracy: Double = -1
@@ -19,6 +27,31 @@ final class LocationProvider: NSObject, SensorProvider {
 
     private let manager = CLLocationManager()
     private var active: Set<ReadingID> = []
+
+    /// Whether this build may keep running in the background on Core Location's account.
+    ///
+    /// `allowsBackgroundLocationUpdates` raises if the `location` background mode is not
+    /// declared, so the bundle is asked rather than assumed: a build that drops the mode
+    /// should lose the feature, not crash on the first long recording (R-82).
+    static let hasLocationBackgroundMode: Bool = {
+        let modes = Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String]
+        return modes?.contains("location") ?? false
+    }()
+
+    /// Set only while a recording that may continue in the background is running (R-82).
+    ///
+    /// It is cleared the moment that recording stops. Leaving it on would let Readout hold
+    /// the app alive with nothing to show for it, and would keep the blue indicator lit for a
+    /// user who is no longer recording anything.
+    var allowsBackgroundUpdates = false {
+        didSet {
+            guard allowsBackgroundUpdates != oldValue, Self.hasLocationBackgroundMode else { return }
+            manager.allowsBackgroundLocationUpdates = allowsBackgroundUpdates
+            // iOS pauses location updates when it decides the device has stopped moving,
+            // which on a train means a log that quietly stops at the first long platform.
+            manager.pausesLocationUpdatesAutomatically = !allowsBackgroundUpdates
+        }
+    }
 
     override init() {
         super.init()
@@ -148,10 +181,14 @@ extension LocationProvider: @preconcurrency CLLocationManagerDelegate {
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let previous = permissionStatus
         permissionStatus = Self.status(from: manager.authorizationStatus)
-        guard permissionStatus.isGranted, !active.isEmpty else { return }
-        manager.startUpdatingLocation()
-        if active.contains(.heading) { manager.startUpdatingHeading() }
+        guard permissionStatus != previous else { return }
+        // The hub decides what to start: a reading leased while the prompt was still up has
+        // no entry in `active`, so starting the manager here would leave the updates arriving
+        // with nothing to publish them to. Core Location also calls this once as the delegate
+        // is set, which is why an unchanged state is ignored.
+        onAuthorizationChange?()
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {

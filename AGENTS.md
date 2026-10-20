@@ -52,6 +52,8 @@ Readout/
 ├── docs/SPEC.md            Specification (requirement IDs R-nn)
 ├── docs/RELEASE.md         What is done for release, and the on-device checklist
 ├── scripts/                screenshots.sh and other one-off tooling
+├── Config/Info.plist       The one Info.plist key Xcode's generator cannot produce:
+│                           UIBackgroundModes. Generated keys are merged on top of it
 ├── Readout/                App target
 │   ├── App/                Entry point, root view, app-wide environment
 │   ├── Model/              Reading catalog, values, units, comparison scales, calibration
@@ -59,10 +61,12 @@ Readout/
 │   ├── Features/
 │   │   ├── Readings/       Tile grid, tiles, detail view, chart, stats
 │   │   ├── Tools/          Spirit level, compass, sound meter, light meter
-│   │   ├── Recordings/     Recording and CSV export (v0.2)
+│   │   ├── Recordings/     Recording and CSV export (v0.2), the live session view and
+│   │   │                    the route panel (v0.5, R-76, R-79)
 │   │   ├── Onboarding/     The one-time first-run explainer (v0.3)
-│   │   └── Settings/       Settings sheet, stored preferences, calibration (R-75)
-│   ├── Support/            Haptics and other small helpers
+│   │   └── Settings/       Settings sheet, stored preferences, calibration (R-75),
+│   │                        themes and interface size (R-77, R-78)
+│   ├── Support/            Theme and interface-size modifiers, haptics and other helpers
 │   ├── AppIcon.icon/       Icon Composer document — open it in Icon Composer, not a text editor
 │   ├── PrivacyInfo.xcprivacy
 │   └── Assets.xcassets/
@@ -92,11 +96,26 @@ Readout/
 
 ## 6. Privacy — non-negotiable
 
-- **No network.** No URLSession, no analytics, no crash reporting, no remote config. If a change
-  would make a network request, stop and raise it instead (R-59).
+- **No network.** No URLSession, no analytics, no crash reporting, no remote config. Readout
+  makes no network request of its own, and nothing measured or recorded ever leaves the phone.
+  If a change would make one, stop and raise it instead (R-59).
+  - **The one exception, and it stays the only one:** showing a recorded route on Apple Maps
+    makes iOS fetch map tiles. It is off by default, the default route view is a `Canvas` plot
+    drawn from the session's own CSV, and the user turns it on from a dialog that says what the
+    trade is (R-76, R-81). Adding a second exception is a spec decision, not a code change.
+- **Settings must keep telling the truth about this.** The Privacy section names the state
+  ("Network requests: None" / "Apple Maps only"), and the README, the Welcome sheet and
+  `PrivacyInfo.xcprivacy` all make claims about it. A change here touches all of them.
 - Microphone samples and camera frames are read in memory for levels only and never written to
   disk, never displayed as saved media (R-56).
-- Never suppress or work around the system microphone/camera indicators (R-58).
+- Never suppress or work around the system microphone/camera indicators, or the blue one shown
+  while a recording runs in the background (R-58).
+- **The microphone and the camera never run in the background.** `location` is the only
+  `UIBackgroundModes` entry Readout declares, and a session recording Sound level or Light is
+  foreground-only whatever else it records (R-83). Adding an `audio` background mode is a spec
+  decision, not a code change; a test asserts `location` is the only mode in the bundle.
+- Background location is set only while a qualifying recording runs and cleared the moment it
+  stops, and Readout asks for When In Use, never Always (R-82, R-84).
 - No new `Info.plist` usage key without a matching line in `docs/SPEC.md` §10.
 
 ## 7. Conventions

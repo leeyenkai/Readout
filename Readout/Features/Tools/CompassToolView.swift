@@ -40,6 +40,7 @@ struct CompassToolView: View {
             .padding(.bottom, 24)
         }
         .scrollIndicators(.hidden)
+        .themedSurface()
         .navigationTitle("Compass")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -58,9 +59,9 @@ struct CompassToolView: View {
             leases.forEach(hub.release)
             leases = []
         }
-        .sensoryFeedback(trigger: cardinalIndex) { _, _ in
-            // A tap as the dial crosses N, E, S or W (R-51).
-            settings.hapticsEnabled ? .selection : nil
+        .sensoryFeedback(trigger: cardinalCrossing) { _, crossing in
+            // A tap as the dial crosses N, E, S or W, and only then (R-51).
+            settings.hapticsEnabled && crossing != nil ? .selection : nil
         }
     }
 
@@ -68,10 +69,9 @@ struct CompassToolView: View {
         hub.sample(.heading)?.value(0)
     }
 
-    /// Changes only when the nearest cardinal point changes, which is what the haptic follows.
-    private var cardinalIndex: Int {
-        guard let heading else { return -1 }
-        return Int((heading / 90).rounded()) % 4
+    /// Which cardinal point the dial is sitting on, which is what the haptic follows (R-51).
+    private var cardinalCrossing: Int? {
+        heading.flatMap { CompassMaths.cardinalCrossing(heading: $0) }
     }
 
     /// Sized from the space it is given rather than from a fixed 300 points, so the dial
@@ -98,7 +98,7 @@ struct CompassToolView: View {
                 }
 
                 Triangle()
-                    .fill(Color.accentColor)
+                    .fill(.tint)
                     .frame(width: 18, height: 14)
                     .offset(y: -(radius - 7))
             }
@@ -115,7 +115,7 @@ struct CompassToolView: View {
         VStack(spacing: 2) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(heading.map { ValueFormatting.decimal($0, digits: 0) } ?? "—")
-                    .font(.system(size: 54, weight: .semibold, design: .rounded))
+                    .readoutValue(size: 54)
                     .monospacedDigit()
                     .contentTransition(.numericText())
                 Text("°")
@@ -134,7 +134,7 @@ struct CompassToolView: View {
     }
 
     private func drift(from bearing: Double) -> some View {
-        let difference = ((heading ?? bearing) - bearing + 540).truncatingRemainder(dividingBy: 360) - 180
+        let difference = CompassMaths.drift(from: bearing, to: heading ?? bearing)
         return HStack {
             Label("Locked at \(ValueFormatting.decimal(bearing, digits: 0))°", systemImage: "lock")
                 .font(.subheadline)

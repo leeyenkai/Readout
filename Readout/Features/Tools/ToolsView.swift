@@ -26,6 +26,7 @@ struct ToolsView: View {
                 case .lightMeter: LightMeterView()
                 }
             }
+            .themedSurface()
         }
     }
 }
@@ -70,7 +71,7 @@ private struct ToolRow: View {
         HStack(spacing: 14) {
             Image(systemName: tool.symbol)
                 .font(.title2)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(.tint)
                 .frame(width: 36)
             VStack(alignment: .leading, spacing: 2) {
                 Text(tool.title)

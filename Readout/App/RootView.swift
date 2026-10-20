@@ -21,6 +21,9 @@ struct RootView: View {
                 RecordingsView().modifier(RecordingBarInset())
             }
         }
+        // The chosen look and interface size, applied once for every tab and every screen
+        // they push (R-77, R-78). Sheets are their own presentations and dress themselves.
+        .themed()
         .onChange(of: scenePhase) { _, phase in
             // Every sensor stops the moment the app is no longer in front (R-64, P-3).
             //
@@ -69,10 +72,18 @@ struct RootView: View {
         }
     }
 
-    /// Recording is foreground-only in v1: leaving the app stops the session and saves it
-    /// with an interrupted note (R-41). A recording keeps its sensors through `.inactive`,
-    /// or glancing at Control Centre would leave the session running but recording nothing.
+    /// Leaving the app ends a recording — unless the session is one that may carry on (R-82).
+    ///
+    /// A qualifying session keeps every lease it holds and nothing is suspended: Core Location
+    /// holds the app alive, and the other providers go on delivering because the process is
+    /// never suspended. A session that does not qualify — one with no location reading, or one
+    /// recording the microphone or the camera, which never run unattended — stops and saves
+    /// with an interrupted note, exactly as every session did before (R-41).
+    ///
+    /// A recording also keeps its sensors through `.inactive`, or glancing at Control Centre
+    /// would leave the session running but recording nothing.
     private func leaveForeground() {
+        guard !recorder.continuesInBackground else { return }
         recorder.stop(interrupted: true)
         hub.suspend()
     }

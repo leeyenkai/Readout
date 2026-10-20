@@ -50,9 +50,36 @@ struct SampleBuffer: Sendable {
         return true
     }
 
+    /// The samples inside a window ending at `end`, oldest first.
+    ///
+    /// Walks the ring from the newest sample backwards and stops at the first one that falls
+    /// outside the window, rather than materialising all 3,000 of them and filtering. The
+    /// live chart calls this on every redraw — at display rate, for each of three axes — and
+    /// copying the whole history each time to draw ten seconds of it was the most expensive
+    /// thing the detail view did.
+    ///
+    /// Samples are appended in time order, so the first one outside the window means every
+    /// one before it is too.
     func samples(in window: TimeInterval, endingAt end: Date = .now) -> [SensorSample] {
+        guard !storage.isEmpty else { return [] }
         let start = end.addingTimeInterval(-window)
-        return samples.filter { $0.time >= start }
+        let count = storage.count
+        let isFull = count == capacity
+        var collected: [SensorSample] = []
+        collected.reserveCapacity(min(count, 256))
+
+        for step in 1...count {
+            // Newest first: the ring's last written slot, working backwards and wrapping.
+            let index = isFull ? (nextIndex + count - step) % capacity : count - step
+            let sample = storage[index]
+            // The window is bounded at both ends. In practice `end` is now and nothing is
+            // newer than that, but a window asked for in the past should not reach forwards
+            // out of itself.
+            guard sample.time <= end else { continue }
+            guard sample.time >= start else { break }
+            collected.append(sample)
+        }
+        return Array(collected.reversed())
     }
 
     func stats(channel: Int) -> ChannelStats? {

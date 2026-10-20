@@ -14,7 +14,8 @@ for this repository, and it applies to people as much as to agents.
 
 ## The rules that are not negotiable
 
-- **No network.** No URLSession, no analytics, no crash reporting, no remote config. A change
+- **No network.** No URLSession, no analytics, no crash reporting, no remote config. The one
+  exception is the optional Apple Maps route view, which is off by default (R-81). A change
   that would make a request is a change to the premise of the app (R-59).
 - **No third-party dependencies.** Adding one needs a decision recorded in the specification
   first.

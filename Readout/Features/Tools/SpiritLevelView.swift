@@ -41,6 +41,7 @@ struct SpiritLevelView: View {
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 16)
+        .themedSurface()
         .navigationTitle("Spirit level")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

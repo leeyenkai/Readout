@@ -42,8 +42,30 @@ struct ComparisonScale: Sendable, Equatable {
         return (clamped - span.lowerBound) / (span.upperBound - span.lowerBound)
     }
 
-    /// The reference a value is closest to, used for the "that is about…" line.
+    /// The reference a value is closest to, used for the "that is about…" line — or nothing,
+    /// when the value is not close to any of them.
+    ///
+    /// "About the same as" has to be earned. Returning the nearest reference whatever the gap
+    /// had the battery reading call 50% "about the same as" the Low Power Mode prompt at 20%,
+    /// and a phone sitting still "about the same as" a car pulling away, neither of which is
+    /// true (P-2).
+    ///
+    /// Closeness is measured along the bar rather than in the reading's own unit, so one
+    /// tolerance serves every scale: a span of 0–100,000 lux and a span of −30–30 metres are
+    /// both a bar of the same width, and the logarithmic scales come out right without a
+    /// second rule.
     func nearest(to value: Double) -> Reference? {
-        references.min { abs($0.value - value) < abs($1.value - value) }
+        guard value.isFinite else { return nil }
+        let placed = position(of: value)
+        let closest = references.min {
+            abs(position(of: $0.value) - placed) < abs(position(of: $1.value) - placed)
+        }
+        guard let closest, abs(position(of: closest.value) - placed) <= Self.tolerance else {
+            return nil
+        }
+        return closest
     }
+
+    /// How far along the bar a value may sit from a reference and still be described by it.
+    private static let tolerance = 0.05
 }

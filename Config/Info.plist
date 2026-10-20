@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- The only key here is one Xcode's Info.plist generator cannot produce: there is no
+	     INFOPLIST_KEY_ build setting for UIBackgroundModes. Everything else still comes from
+	     the INFOPLIST_KEY_* settings in the project and is merged on top of this file.
+
+	     `location` is what lets a recording of a journey carry on once Readout is no longer
+	     in front (R-82). It is the only background mode Readout declares: the microphone and
+	     the camera deliberately have none, so neither can ever run unattended. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
+</dict>
+</plist>

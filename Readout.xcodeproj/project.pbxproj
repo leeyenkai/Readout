@@ -295,10 +295,11 @@
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Readout;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Readout reads the camera's exposure settings to estimate how bright the light is. No photo or video is taken, shown or saved.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Readout shows your coordinates, altitude, speed and course, and needs your location to point the compass at true north. Nothing leaves your phone.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Readout shows your coordinates, altitude, speed and course, and needs your location to point the compass at true north. A recording of a journey keeps running while Readout is in the background. Nothing leaves your phone.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Readout measures how loud it is around you. It reads the microphone level only; no audio is recorded or saved.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "Readout uses motion and fitness data to show air pressure, altitude change, steps and pace.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -328,10 +329,11 @@
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Readout;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Readout reads the camera's exposure settings to estimate how bright the light is. No photo or video is taken, shown or saved.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Readout shows your coordinates, altitude, speed and course, and needs your location to point the compass at true north. Nothing leaves your phone.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Readout shows your coordinates, altitude, speed and course, and needs your location to point the compass at true north. A recording of a journey keeps running while Readout is in the background. Nothing leaves your phone.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Readout measures how loud it is around you. It reads the microphone level only; no audio is recorded or saved.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "Readout uses motion and fitness data to show air pressure, altitude change, steps and pace.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
