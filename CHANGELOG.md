@@ -8,6 +8,11 @@ requirement IDs in [`docs/SPEC.md`](docs/SPEC.md).
 
 ## [Unreleased]
 
+### Changed
+
+- The README is shorter, with the app icon and the screenshots up front; the icon and a social
+  preview image for GitHub live in `docs/assets/`.
+
 ## [0.6.0] — 2026-10-23
 
 **Black by default, a phone you can see turn, and the defects a real iPhone would have found.**

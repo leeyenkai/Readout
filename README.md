@@ -1,144 +1,109 @@
-# Readout
+<p align="center">
+  <img src="docs/assets/icon.png" width="128" height="128" alt="Readout's app icon: a rising trace ending in a live point">
+</p>
 
-[![CI](https://github.com/leeyenkai/Readout/actions/workflows/ci.yml/badge.svg)](https://github.com/leeyenkai/Readout/actions/workflows/ci.yml)
-[![Platform](https://img.shields.io/badge/platform-iOS%2026%2B-lightgrey)](https://www.apple.com/ios/)
-[![Swift](https://img.shields.io/badge/Swift-6-orange)](https://swift.org)
-[![Licence](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
+<h1 align="center">Readout</h1>
 
-A free, lightweight iPhone app that turns the phone's built-in sensors into clear, live
-readings — and explains what each one actually measures.
+<p align="center">
+  Your iPhone's sensors, as clear live readings — and what each one actually measures.
+</p>
 
-Readout shows 19 readings across motion, environment, location and device activity, each with a
-live chart, min/max/average, a plain-English explainer and a scale of everyday comparisons
-("60 dB is a conversation; 85 dB is heavy traffic"). It adds five instruments: a 3D model of the
-phone that turns as yours does, a spirit level, a compass, a sound meter and a light meter.
+<p align="center">
+  <a href="https://github.com/leeyenkai/Readout/actions/workflows/ci.yml"><img src="https://github.com/leeyenkai/Readout/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/iOS-26%2B-000000?logo=apple" alt="iOS 26+">
+  <img src="https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white" alt="Swift 6">
+  <img src="https://img.shields.io/badge/dependencies-none-0A84FF" alt="No dependencies">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-0A84FF" alt="MIT licence"></a>
+</p>
 
-It records too: pick the readings you want, start a session at the top of a journey and watch
-it as it runs, then keep it, chart it, see the route it took and export it as CSV. It opens in
-true black; seven themes and an interface size make it yours.
+<table align="center">
+  <tr>
+    <td align="center"><img src="docs/screenshots/readings.png" width="140" alt="The readings grid"><br><sub>Readings</sub></td>
+    <td align="center"><img src="docs/screenshots/attitude.png" width="140" alt="The phone drawn in 3D"><br><sub>Attitude, in 3D</sub></td>
+    <td align="center"><img src="docs/screenshots/detail.png" width="140" alt="A reading's chart and statistics"><br><sub>Chart and stats</sub></td>
+    <td align="center"><img src="docs/screenshots/compass.png" width="140" alt="The compass"><br><sub>Compass</sub></td>
+    <td align="center"><img src="docs/screenshots/sound-meter.png" width="140" alt="The sound meter"><br><sub>Sound meter</sub></td>
+  </tr>
+</table>
 
-It is a hobby project. No ads, no in-app purchases, no accounts, and nothing it measures ever
-leaves the phone. Readout makes no network request of its own; the single optional feature that
-causes one — showing a recorded route on Apple Maps rather than plotting it offline — is off
-until you turn it on, and Settings says which state you are in.
+<p align="center"><sub>Simulator captures: every number in them comes from a synthetic source.</sub></p>
 
-| ![The readings grid](docs/screenshots/readings.png) | ![The phone in 3D](docs/screenshots/attitude.png) | ![A reading's detail view](docs/screenshots/detail.png) | ![The compass](docs/screenshots/compass.png) | ![The sound meter](docs/screenshots/sound-meter.png) |
-| --- | --- | --- | --- | --- |
-| Readings | Attitude, in 3D | Detail, chart and stats | Compass | Sound meter |
+## Features
 
-<sub>From the Simulator, where every number comes from a synthetic source — see
-[Build and run](#build-and-run).</sub>
+- **19 live readings** across motion, environment, location and the device itself — each with
+  a chart, min/max/average, a plain-English explainer and everyday comparisons
+  ("60 dB is a conversation; 85 dB is heavy traffic").
+- **Five instruments** — Attitude (your phone in 3D, turning as it does), a spirit level, a
+  compass, a sound meter and a light meter.
+- **Recording** — log any readings at 1, 10 or 50 Hz, watch them as they run, see the route a
+  journey took, and export CSV. A recording that logs your position carries on in your pocket.
+- **Calibration** against a reference sound or lux meter, if you own one.
+- **True black by default**, seven themes and an interface size; every animation respects
+  Reduce Motion.
 
-## Status
-
-**v0.6.0 — polish, black by default, and the phone in 3D.** Every reading, every instrument,
-recording and CSV export, routes, a calibration you can carry out against a reference meter,
-themes and an interface size — and now true black by default, one consistent design with
-animation that respects Reduce Motion, an Attitude tool that draws your phone in 3D, and the
-fixes from a correctness audit aimed squarely at what a real iPhone would do. It is ready to
-hand to somebody: clone it, set your own signing team, and it runs on your iPhone. There is no
-plan to put it on the App Store.
-
-A recording that includes your position carries on when you lock the phone or switch apps, so
-a journey survives going in a pocket; iOS shows the blue location indicator while it does. A
-session without a location reading cannot — there is no mechanism for it — and the app says
-which applies before you start. The microphone and the camera never run in the background at
-all. None of this is verified on a physical iPhone yet.
-
-**Nothing has been verified on physical hardware yet.** Everything here was built and run in
-the Simulator, where the numbers come from a synthetic source. What is left before 1.0 is the
-work a build machine cannot do — the on-device checklist is
-[`docs/RELEASE.md`](docs/RELEASE.md) §3.
-
-See [`CHANGELOG.md`](CHANGELOG.md) for what has shipped and [`docs/SPEC.md`](docs/SPEC.md) §12
-for the milestones.
-
-## Requirements
-
-- iOS 26.0 or later, iPhone only, portrait
-- Xcode 26 or later — developed on Xcode 27, and CI builds and tests it on 26.6
-- Swift 6 language mode; nothing here needs the iOS 27 SDK
-- No third-party dependencies
-
-## Build and run
-
-```bash
-git clone https://github.com/leeyenkai/Readout.git
-cd Readout
-open Readout.xcodeproj
-```
-
-Or from the command line:
-
-```bash
-xcodebuild -project Readout.xcodeproj -scheme Readout -destination 'generic/platform=iOS Simulator' build
-```
-
-Run the tests with:
-
-```bash
-xcodebuild -project Readout.xcodeproj -scheme Readout -destination 'platform=iOS Simulator,name=Readout iPhone' test
-```
-
-The Simulator has no sensors, so Readout takes every reading from a synthetic source there:
-the interface is complete and demoable, every value says "Simulated", and none of it is real.
-
-### On your own iPhone
-
-Signing is deliberately unset, so you sign with your own team: open `Readout.xcodeproj`, then
-target *Readout* → Signing & Capabilities → Team. A free Apple ID works — builds signed with
-one stop running after seven days. If Xcode objects to the bundle identifier, change the
-`com.leeyenkai` prefix to your own. [`docs/RELEASE.md`](docs/RELEASE.md) §2 has the whole
-sequence, including what to say about the estimates when you pass it on.
-
-## What it reads
+<details>
+<summary><b>Everything it reads</b></summary>
 
 | Group | Readings |
 | --- | --- |
-| **Motion** | Acceleration, rotation rate, orientation, magnetic field, heading |
-| **Environment** | Air pressure, relative altitude, sound level, light |
-| **Location** | Coordinates, GPS altitude, speed, course, accuracy |
-| **Device & activity** | Steps/distance/floors, cadence and pace, proximity, battery, thermal state |
+| Motion | Acceleration, rotation rate, orientation, magnetic field, heading |
+| Environment | Air pressure, relative altitude, sound level, light |
+| Location | Coordinates, GPS altitude, speed, course, accuracy |
+| Device & activity | Steps/distance/floors, cadence and pace, proximity, battery, thermal state |
 
-Two things iOS does not expose, and Readout therefore does not pretend to have: **ambient light**
-(measured here through the camera, so it is an estimate) and **air temperature** (not available at
-all — "Phone heat" is the device's own thermal state, not the room's).
+iOS exposes neither the ambient light sensor nor air temperature. Light is estimated from the
+camera's exposure, so it carries a "≈"; "Phone heat" is the device's own thermal state, not the
+room's.
 
-Sound and light carry a "≈" for the same reason. If you own a sound level meter or a lux meter,
-**Calibrate** in either tool takes its reading and works out the correction for your phone; it
-stays on the device and nothing else changes.
+</details>
 
 ## Privacy
 
-Everything is measured and stored on the phone. The app makes no network request of its own and contains
-no analytics or crash-reporting SDKs, so there is nothing for a privacy label to declare — the
-privacy manifest in the bundle says exactly that.
-Microphone audio and camera frames are read in memory to derive a level and are never saved.
+No ads, no accounts, no analytics. Everything is measured and stored on the phone, and Readout
+makes no network request of its own — the one optional exception, showing a recorded route on
+Apple Maps, is off until you turn it on. Microphone audio and camera frames are read in memory
+for a level and never saved. Each permission is asked for only when a reading needs it.
 
-Permissions are requested only when a reading needs one: Motion & Fitness (pressure, altitude,
-steps), Location While Using (location group, and pointing the compass at true north),
-Microphone (sound), Camera (light). The compass itself needs none.
+## Getting started
 
-## Repository layout
+You need Xcode 26 or later, and an iPhone on iOS 26 or the Simulator. There are no
+dependencies to install.
 
-| Path | Contents |
-| --- | --- |
-| [`docs/SPEC.md`](docs/SPEC.md) | Specification and requirement IDs — the source of truth for scope |
-| [`AGENTS.md`](AGENTS.md) | Working agreement: architecture rules, conventions, constraints |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to propose and make a change |
-| [`CLAUDE.md`](CLAUDE.md) | Claude Code pointer to `AGENTS.md` |
-| [`CHANGELOG.md`](CHANGELOG.md) | Release history |
-| [`docs/RELEASE.md`](docs/RELEASE.md) | How to share it, how to run it on your own iPhone, and the on-device checklist that still gates v1.0 |
-| `docs/screenshots/` | Simulator captures used in this README |
-| `Readout/` | App source: `App/`, `Model/`, `Sensors/`, `Features/`, `Support/` |
-| `ReadoutTests/` | Unit tests for the pure logic (units, dB/lux maths, statistics) |
+```bash
+git clone https://github.com/leeyenkai/Readout.git
+open Readout/Readout.xcodeproj
+```
 
-## Contributing
+- **Simulator** — runs as it is. There are no sensors there, so every reading comes from a
+  synthetic source and says "Simulated".
+- **Your iPhone** — signing is deliberately unset: choose your team under *Signing &
+  Capabilities*. A free Apple ID works for seven days at a time. The full sequence is in
+  [`docs/RELEASE.md`](docs/RELEASE.md) §2.
 
-[`CONTRIBUTING.md`](CONTRIBUTING.md) is the short version; [`AGENTS.md`](AGENTS.md) is the full
-working agreement, covering the architecture rules, the privacy constraints and the requirement
-that `CHANGELOG.md` and `docs/SPEC.md` move with the code.
+Run the tests from the command line, with any simulator from
+`xcrun simctl list devices available`:
+
+```bash
+xcodebuild -project Readout.xcodeproj -scheme Readout \
+  -destination 'platform=iOS Simulator,name=iPhone 17' test
+```
+
+## Status
+
+**v0.6.0.** Everything above is built and tested in the Simulator, and CI builds and tests
+every push. It has not yet been verified on a physical iPhone — the on-device checklist that
+gates 1.0 is in [`docs/RELEASE.md`](docs/RELEASE.md) §3. There is no plan to put it on the
+App Store; it is made to be built and shared.
+
+## Documentation
+
+- [**Changelog**](CHANGELOG.md) — what each release changed
+- [**Specification**](docs/SPEC.md) — scope and requirement IDs, the source of truth
+- [**Running and sharing it**](docs/RELEASE.md) — signing it for your own iPhone, passing it
+  on, and the on-device checklist that gates 1.0
+- [**Contributing**](CONTRIBUTING.md) — how to propose and make a change
+- [**Working agreement**](AGENTS.md) — architecture, conventions and privacy rules
 
 ## Licence
 
-[MIT](LICENSE).
+Free and open source under the [MIT licence](LICENSE) — use it, change it and share it.

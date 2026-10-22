@@ -1,11 +1,12 @@
 #!/bin/bash
 #
-# Captures the screens an App Store listing needs, from the Simulator.
+# Captures screenshots from the Simulator: the icon on the Home Screen, light and dark,
+# and the readings grid. The rest of the README's screenshots need taps, so they are taken
+# by hand (see the end of this script) and kept in docs/screenshots/.
 #
 # The Simulator has almost no sensors, so every number in these comes from
-# MockSensorSource (R-71). They are good enough to lay out a listing and to review a
-# change, but the screenshots that actually ship should be retaken on a physical iPhone
-# with real readings — see docs/RELEASE.md.
+# MockSensorSource (R-71). They are good enough for the README and to review a change,
+# but say so wherever they are shown — see docs/RELEASE.md.
 #
 # Usage: scripts/screenshots.sh [device name]
 

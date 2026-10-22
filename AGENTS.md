@@ -52,6 +52,8 @@ Readout/
 ├── .github/workflows/      CI: builds and runs the tests on every push
 ├── docs/SPEC.md            Specification (requirement IDs R-nn)
 ├── docs/RELEASE.md         What is done for release, and the on-device checklist
+├── docs/screenshots/       Simulator captures shown in the README
+├── docs/assets/            The icon and social preview image the README and GitHub use
 ├── scripts/                screenshots.sh and other one-off tooling
 ├── Config/Info.plist       The one Info.plist key Xcode's generator cannot produce:
 │                           UIBackgroundModes. Generated keys are merged on top of it
