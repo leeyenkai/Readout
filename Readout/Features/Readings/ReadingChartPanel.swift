@@ -17,6 +17,7 @@ struct ReadingChartPanel: View {
     @State private var isPaused = false
     @State private var hiddenChannels: Set<Int> = []
     @State private var frozen: [SensorSample] = []
+    @State private var scale = ChartScale()
 
     var body: some View {
         let source = source
@@ -49,7 +50,7 @@ struct ReadingChartPanel: View {
             // And a vertical scale that fits what is on screen rather than reaching down to
             // zero: air pressure only ever moves between about 1,000 and 1,030 hPa, and on an
             // axis that starts at nothing it draws as a dead flat line (R-25).
-            .chartYScale(domain: yDomain(for: source))
+            .chartYScale(domain: scale.domain ?? yDomain(for: source))
             .chartXAxis {
                 AxisMarks(values: marks(in: domain)) { value in
                     AxisGridLine()
@@ -77,13 +78,25 @@ struct ReadingChartPanel: View {
             }
             .chartLegend(.hidden)
             .frame(height: 170)
+            // A different window zooms the trace out or in rather than replacing it, and an
+            // axis switched off fades away.
+            .motion(.readoutSmooth, value: window)
+            .motion(.readoutSnappy, value: hiddenChannels)
 
             if descriptor.isMultiAxis {
                 axisToggles
             }
         }
-        .padding(14)
-        .glassEffect(.regular, in: .rect(cornerRadius: 24))
+        .readoutCard(padding: 14)
+        .onChange(of: source.last?.time, initial: true) { _, _ in updateScale() }
+        .onChange(of: window) { _, _ in
+            scale.reset()
+            updateScale()
+        }
+        .onChange(of: hiddenChannels) { _, _ in
+            scale.reset()
+            updateScale()
+        }
         .accessibilityLabel("\(descriptor.name) chart, last \(window.title)")
         // VoiceOver's Audio Graph: the shape of the trace as a tone that rises and falls,
         // so a chart is not simply unavailable without sight (R-52).
@@ -106,9 +119,11 @@ struct ReadingChartPanel: View {
             } label: {
                 Image(systemName: isPaused ? "play.fill" : "pause.fill")
                     .font(.footnote.weight(.semibold))
-                    .frame(width: 28, height: 28)
+                    .frame(width: 30, height: 30)
+                    .contentTransition(.symbolEffect(.replace))
             }
             .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
             .accessibilityLabel(isPaused ? "Resume the chart" : "Pause the chart")
         }
     }
@@ -118,9 +133,10 @@ struct ReadingChartPanel: View {
             ForEach(Array(descriptor.channels.enumerated()), id: \.offset) { index, channel in
                 let isHidden = hiddenChannels.contains(index)
                 Button {
+                    // A chart with every axis switched off says nothing; the last one stays.
                     if isHidden {
                         hiddenChannels.remove(index)
-                    } else {
+                    } else if hiddenChannels.count < descriptor.channels.count - 1 {
                         hiddenChannels.insert(index)
                     }
                 } label: {
@@ -136,6 +152,7 @@ struct ReadingChartPanel: View {
                 }
                 .buttonStyle(.glass)
                 .opacity(isHidden ? 0.4 : 1)
+                .motion(.readoutSnappy, value: isHidden)
                 .accessibilityLabel(isHidden ? "Show \(channel.name)" : "Hide \(channel.name)")
             }
             Spacer()
@@ -158,9 +175,20 @@ struct ReadingChartPanel: View {
         return end.addingTimeInterval(-window.duration)...end
     }
 
-    /// The band the visible samples occupy, with a little room above and below. A steady
-    /// reading still gets a band, or the line would have nowhere to be drawn.
+    /// The band the visible samples occupy, before the scale has settled on one.
     private func yDomain(for source: [SensorSample]) -> ClosedRange<Double> {
+        guard let extent = extent(of: source) else { return -1...1 }
+        return ChartScale.niceDomain(lowest: extent.lowest, highest: extent.highest)
+    }
+
+    /// Moves the settled scale on with what is now on screen.
+    private func updateScale() {
+        guard let extent = extent(of: source) else { return }
+        scale.update(lowest: extent.lowest, highest: extent.highest, at: .now)
+    }
+
+    /// The lowest and highest visible values, in the units shown.
+    private func extent(of source: [SensorSample]) -> (lowest: Double, highest: Double)? {
         var lowest = Double.greatestFiniteMagnitude
         var highest = -Double.greatestFiniteMagnitude
         for index in descriptor.channels.indices where !hiddenChannels.contains(index) {
@@ -173,10 +201,8 @@ struct ReadingChartPanel: View {
                 highest = max(highest, converted)
             }
         }
-        guard lowest <= highest else { return -1...1 }
-        let span = highest - lowest
-        let padding = span > 0 ? span * 0.15 : max(abs(highest) * 0.01, 0.5)
-        return (lowest - padding)...(highest + padding)
+        guard lowest <= highest else { return nil }
+        return (lowest, highest)
     }
 
     /// Three marks — the start of the window, its middle and now — rather than whatever
@@ -193,7 +219,9 @@ struct ReadingChartPanel: View {
         let unit = descriptor.channels[channel].unit
         let presentation = unit.presentation(units)
         return source.compactMap { sample in
-            guard let value = sample.value(channel) else { return nil }
+            // A missing value — no course while standing still — is published as NaN, which a
+            // line mark cannot draw (R-45).
+            guard let value = sample.value(channel), value.isFinite else { return nil }
             return ChartPoint(time: sample.time, value: presentation.convert(value))
         }
     }

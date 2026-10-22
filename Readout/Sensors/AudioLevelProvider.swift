@@ -40,6 +40,8 @@ final class AudioLevelProvider: SensorProvider {
     /// `engine.start()` is still installed. Removing it only when the engine was running
     /// left it behind, and the next `installTap` on the same bus traps inside AVFAudio.
     private var hasTap = false
+    /// The format the tap was installed with, to tell a real change of input from noise.
+    private var tapFormat: AVAudioFormat?
     private var observers: [NSObjectProtocol] = []
 
     /// Every iPhone has a microphone, and `AVAudioSession.availableInputs` answers only for
@@ -89,6 +91,7 @@ final class AudioLevelProvider: SensorProvider {
                 meter.consume(buffer)
             }
             hasTap = true
+            tapFormat = format
             engine.prepare()
             try engine.start()
             isRunning = true
@@ -108,6 +111,7 @@ final class AudioLevelProvider: SensorProvider {
         if hasTap {
             engine.inputNode.removeTap(onBus: 0)
             hasTap = false
+            tapFormat = nil
         }
         if engine.isRunning {
             engine.stop()
@@ -141,8 +145,9 @@ final class AudioLevelProvider: SensorProvider {
         // installed with the old one asserts. Reinstall it against the new route.
         observers.append(centre.addObserver(
             forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.handleRouteChange() }
+        ) { [weak self] notification in
+            let reason = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt
+            MainActor.assumeIsolated { self?.handleRouteChange(reason: reason) }
         })
         // The audio server died and took the engine with it; nothing survives but a new one.
         observers.append(centre.addObserver(
@@ -167,9 +172,26 @@ final class AudioLevelProvider: SensorProvider {
         }
     }
 
-    private func handleRouteChange() {
-        guard isRunning else { return }
-        restart()
+    /// Restarts only when the input itself has changed. The meter's own category change
+    /// posts a route change too, and restarting on every one of them tore the engine down
+    /// straight after it started — and threw the level back to nothing each time.
+    ///
+    /// A configuration change restarts only if the hardware format really moved away from
+    /// the tap's: starting the session can post one of its own, and restarting for that
+    /// would post another.
+    private func handleRouteChange(reason: UInt?) {
+        guard isRunning, let reason, let kind = AVAudioSession.RouteChangeReason(rawValue: reason) else { return }
+        switch kind {
+        case .newDeviceAvailable, .oldDeviceUnavailable:
+            restart()
+        case .routeConfigurationChange:
+            let format = engine.inputNode.outputFormat(forBus: 0)
+            if format.sampleRate != tapFormat?.sampleRate || format.channelCount != tapFormat?.channelCount {
+                restart()
+            }
+        default:
+            break
+        }
     }
 
     private func handleMediaServicesReset() {
@@ -191,7 +213,7 @@ final class AudioLevelProvider: SensorProvider {
     }
 
     private func publish() {
-        guard isRunning, status == .live else { return }
+        guard isRunning, status == .live, meter.hasReading else { return }
         let rms = meter.smoothedRMS
         let decibels = SoundLevelMaths.decibels(rms: rms, calibrationOffset: calibrationOffset)
         output?(.soundLevel, SensorSample(values: [decibels], note: "Estimate"))
@@ -203,6 +225,10 @@ private final class LevelMeter: @unchecked Sendable {
     private let lock = NSLock()
     private var smoothed: Double = 0
     private var constant: TimeInterval = 0.125
+    /// False until the first buffer arrives. The smoothing used to start from silence, so
+    /// every start read about 20 dB low and crept up over the next second — and that ramp
+    /// went into the average, the quietest figure and any calibration taken straight away.
+    private var hasValue = false
 
     var timeConstant: TimeInterval {
         get { lock.withLock { constant } }
@@ -213,8 +239,15 @@ private final class LevelMeter: @unchecked Sendable {
         lock.withLock { smoothed }
     }
 
+    var hasReading: Bool {
+        lock.withLock { hasValue }
+    }
+
     func reset() {
-        lock.withLock { smoothed = 0 }
+        lock.withLock {
+            smoothed = 0
+            hasValue = false
+        }
     }
 
     func consume(_ buffer: AVAudioPCMBuffer) {
@@ -229,6 +262,12 @@ private final class LevelMeter: @unchecked Sendable {
         let rms = sqrt(sum / Double(count))
         let interval = Double(count) / buffer.format.sampleRate
         lock.withLock {
+            // The first buffer is taken as it is, so the level starts where the room is.
+            guard hasValue else {
+                smoothed = rms
+                hasValue = true
+                return
+            }
             let alpha = SoundLevelMaths.smoothing(timeConstant: constant, interval: interval)
             smoothed += alpha * (rms - smoothed)
         }

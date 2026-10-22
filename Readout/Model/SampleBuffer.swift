@@ -11,12 +11,15 @@ struct SampleBuffer: Sendable {
     static let minimumInterval: TimeInterval = 0.095
 
     let capacity: Int
+    /// Each channel's wrap, so an angle's statistics are worked out round the circle.
+    let wraps: [AngleWrap?]
     private(set) var stats: [ChannelStats] = []
     private var storage: [SensorSample] = []
     private var nextIndex = 0
 
-    init(capacity: Int = SampleBuffer.defaultCapacity) {
+    init(capacity: Int = SampleBuffer.defaultCapacity, wraps: [AngleWrap?] = []) {
         self.capacity = capacity
+        self.wraps = wraps
         storage.reserveCapacity(min(capacity, 512))
     }
 
@@ -34,12 +37,17 @@ struct SampleBuffer: Sendable {
 
     var isEmpty: Bool { storage.isEmpty }
 
+    /// Whether `append` would keep this sample. Asked first by an owner that is observed, so a
+    /// sample the buffer is going to drop does not count as a change to it.
+    func accepts(_ sample: SensorSample) -> Bool {
+        guard let latest else { return true }
+        return sample.time.timeIntervalSince(latest.time) >= Self.minimumInterval
+    }
+
     /// Appends a sample unless one arrived less than `minimumInterval` ago.
     @discardableResult
     mutating func append(_ sample: SensorSample) -> Bool {
-        if let latest, sample.time.timeIntervalSince(latest.time) < Self.minimumInterval {
-            return false
-        }
+        guard accepts(sample) else { return false }
         if storage.count < capacity {
             storage.append(sample)
         } else {
@@ -82,8 +90,10 @@ struct SampleBuffer: Sendable {
         return Array(collected.reversed())
     }
 
+    /// Nil until the channel has had at least one finite value.
     func stats(channel: Int) -> ChannelStats? {
-        stats.indices.contains(channel) ? stats[channel] : nil
+        guard stats.indices.contains(channel), !stats[channel].isEmpty else { return nil }
+        return stats[channel]
     }
 
     /// Clears the statistics but keeps the history, so the chart does not jump (R-26).
@@ -103,11 +113,11 @@ struct SampleBuffer: Sendable {
         // known still take this sample's value; taking the new channel and returning early
         // used to drop them, so the live statistics disagreed with the recorded ones.
         for (index, value) in sample.values.enumerated() {
-            if stats.indices.contains(index) {
-                stats[index].add(value)
-            } else {
-                stats.append(ChannelStats(first: value))
+            while !stats.indices.contains(index) {
+                let channel = stats.count
+                stats.append(ChannelStats(wrap: wraps.indices.contains(channel) ? wraps[channel] : nil))
             }
+            stats[index].add(value)
         }
     }
 }

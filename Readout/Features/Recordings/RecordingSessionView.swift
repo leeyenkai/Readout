@@ -2,52 +2,51 @@ import Accessibility
 import Charts
 import SwiftUI
 
-/// One saved session: a chart and min/max/average per reading, with Rename, Delete and
+/// One saved recording: a chart and min/max/average per reading, with Rename, Delete and
 /// Export (R-43, R-44).
 struct RecordingSessionView: View {
     let session: RecordingSession
+    /// Asked of the list that opened this, which leaves the screen before deleting: deleting
+    /// from here let this view redraw with an object SwiftData had already thrown away.
+    let onDelete: () -> Void
 
     @Environment(RecordingService.self) private var recorder
     @Environment(AppSettings.self) private var settings
-    @Environment(\.dismiss) private var dismiss
 
     @State private var series: [ReadingID: RecordedSeries] = [:]
+    @State private var hasLoaded = false
     @State private var isRenaming = false
     @State private var isConfirmingDelete = false
     @State private var newName = ""
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                header
+        ReadoutScreen {
+            header
 
-                // Where a session logged coordinates, the first thing worth seeing is where
-                // it went — a latitude and a longitude as two traces say almost nothing
-                // (R-76).
-                if !route.isEmpty {
-                    RoutePanel(route: route)
-                }
-
-                ForEach(session.tracks) { track in
-                    TrackPanel(
-                        track: track,
-                        series: series[track.reading] ?? .empty,
-                        units: settings.displayUnits
-                    )
-                }
-
-                Text("Each reading is one CSV file: an ISO 8601 timestamp, elapsed seconds, then one column per value in the unit named in its header.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.top, 4)
+            // Where a recording logged coordinates, the first thing worth seeing is where it
+            // went — a latitude and a longitude as two traces say almost nothing (R-76).
+            if !route.isEmpty {
+                RoutePanel(route: route, drawsOn: true)
+                    .transition(.blurReplace)
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 32)
+
+            ForEach(Array(session.tracks.enumerated()), id: \.element.id) { index, track in
+                TrackPanel(
+                    track: track,
+                    series: series[track.reading] ?? .empty,
+                    units: settings.displayUnits
+                )
+                .arrival(delay: 0.05 * Double(index))
+            }
+
+            Text("Each reading is one CSV file: an ISO 8601 timestamp, elapsed seconds, then one column per value in the unit named in its header.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.top, 4)
         }
-        .scrollIndicators(.hidden)
-        .themedSurface()
-        .navigationTitle(session.name)
+        .motion(.readoutSmooth, value: hasLoaded)
+        .navigationTitle("Recording")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -61,7 +60,7 @@ struct RecordingSessionView: View {
                 .disabled(files.isEmpty)
             }
             ToolbarItem(placement: .topBarTrailing) {
-                Menu("More", systemImage: "ellipsis.circle") {
+                Menu("More", systemImage: "ellipsis") {
                     Button("Rename", systemImage: "pencil") {
                         newName = session.name
                         isRenaming = true
@@ -76,6 +75,7 @@ struct RecordingSessionView: View {
             TextField("Name", text: $newName)
             Button("Cancel", role: .cancel) {}
             Button("Rename") { recorder.rename(session, to: newName) }
+                .disabled(!RecordingService.isValidName(newName))
         }
         .confirmationDialog(
             "Delete this recording?",
@@ -83,8 +83,7 @@ struct RecordingSessionView: View {
             titleVisibility: .visible
         ) {
             Button("Delete", role: .destructive) {
-                recorder.delete(session)
-                dismiss()
+                onDelete()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -97,26 +96,27 @@ struct RecordingSessionView: View {
 
     private var header: some View {
         VStack(spacing: 6) {
-            Text(session.startedAt.formatted(date: .complete, time: .standard))
-                .font(.subheadline.weight(.medium))
+            Text(session.name)
+                .font(.title3.weight(.semibold))
                 .multilineTextAlignment(.center)
-            Text("\(Duration.seconds(session.duration).formatted(.units(allowed: [.hours, .minutes, .seconds]))) · \(session.rate.summary)")
+            Text(session.startedAt.formatted(date: .complete, time: .shortened))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Text("\(Duration.seconds(session.duration).formatted(.units(allowed: [.hours, .minutes, .seconds]))) · \(session.rate.summary) · \(RecordingNaming.sampleCountText(session.sampleCount)) · \(session.byteCount.formatted(.byteCount(style: .file)))")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-            Text("\(RecordingNaming.sampleCountText(session.sampleCount)) · \(session.byteCount.formatted(.byteCount(style: .file)))")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
             if session.isInterrupted {
-                // R-41: the session stopped because the app went away.
-                Text("Interrupted — Readout left the foreground while this was recording.")
-                    .font(.caption)
+                // R-41: the recording stopped because the app went away.
+                Label("Interrupted — Readout left the foreground while this was recording.", systemImage: "exclamationmark.circle.fill")
+                    .font(.footnote)
                     .foregroundStyle(.orange)
                     .multilineTextAlignment(.center)
+                    .padding(.top, 2)
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(16)
-        .glassEffect(.regular, in: .rect(cornerRadius: 24))
+        .readoutCard(padding: 18, alignment: .center)
     }
 
     /// The fixes this session logged, if it logged any (R-76).
@@ -130,7 +130,7 @@ struct RecordingSessionView: View {
         let files = session.tracks.map { track in
             (reading: track.reading, url: recorder.store.fileURL(for: track, in: session))
         }
-        series = await Task.detached(priority: .userInitiated) {
+        let parsed = await Task.detached(priority: .userInitiated) {
             var parsed: [ReadingID: RecordedSeries] = [:]
             for file in files {
                 guard let series = RecordedSeries(contentsOf: file.url) else { continue }
@@ -138,6 +138,12 @@ struct RecordingSessionView: View {
             }
             return parsed
         }.value
+        // Arrives as one change, so the charts and the route fade in together rather than
+        // popping in one after another.
+        withReadoutAnimation(.readoutSmooth) {
+            series = parsed
+            hasLoaded = true
+        }
     }
 }
 
@@ -153,20 +159,15 @@ private struct TrackPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: descriptor.symbol)
-                    .font(.footnote)
-                    .foregroundStyle(.tint)
-                Text(descriptor.name)
-                    .font(.headline)
-                Spacer(minLength: 0)
+            CardHeader(title: descriptor.name, symbol: descriptor.symbol) {
                 Text(RecordingNaming.sampleCountText(track.sampleCount))
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             if descriptor.isChartable, !series.isEmpty {
                 chart
+                    .transition(.opacity)
             }
 
             ForEach(Array(descriptor.channels.enumerated()), id: \.offset) { index, channel in
@@ -176,23 +177,24 @@ private struct TrackPanel: View {
                             Text(channel.name)
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(channel.axis?.colour ?? .secondary)
-                                .frame(width: 54, alignment: .leading)
+                                .frame(minWidth: 44, alignment: .leading)
                         }
-                        statistic("Min", summary.minimum, channel: channel)
-                        statistic("Max", summary.maximum, channel: channel)
-                        statistic("Avg", summary.mean, channel: channel)
+                        // A channel that never had a value — no course while standing still
+                        // the whole time — says so rather than showing zeros.
+                        statistic("Min", summary.count > 0 ? summary.minimum : nil, channel: channel)
+                        statistic("Max", summary.count > 0 ? summary.maximum : nil, channel: channel)
+                        statistic("Avg", summary.count > 0 ? summary.mean : nil, channel: channel)
                     }
                 }
             }
 
-            Text(track.fileName)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+            Label(track.fileName, systemImage: "tablecells")
+                .font(.caption)
+                .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.middle)
         }
-        .padding(14)
-        .glassEffect(.regular, in: .rect(cornerRadius: 24))
+        .readoutCard(padding: 14)
         .accessibilityElement(children: .contain)
         .accessibilityChartDescriptor(self)
     }
@@ -267,21 +269,12 @@ private struct TrackPanel: View {
         descriptor.channels.first?.unit.presentation(units).digits ?? 1
     }
 
-    private func statistic(_ label: String, _ value: Double, channel: ReadingChannel) -> some View {
-        let formatted = ValueFormatting.format(value, unit: channel.unit, units: units)
-        return VStack(spacing: 1) {
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-            Text(formatted.text)
-                .font(.subheadline.weight(.medium))
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+    private func statistic(_ label: String, _ value: Double?, channel: ReadingChannel) -> some View {
+        guard let value else {
+            return StatColumn(label: label, text: "—", spoken: "no value recorded")
         }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(label) \(formatted.spoken)")
+        let formatted = ValueFormatting.format(value, unit: channel.unit, units: units)
+        return StatColumn(label: label, text: formatted.text, spoken: formatted.spoken)
     }
 }
 

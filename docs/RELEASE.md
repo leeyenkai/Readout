@@ -19,7 +19,7 @@ paperwork a submission would need, kept only in case that ever changes.
 | App icon, all four renditions | `Readout/AppIcon.icon` (Icon Composer document; open it in Icon Composer to edit) |
 | Privacy manifest | `Readout/PrivacyInfo.xcprivacy` — no tracking, no collected data, `UserDefaults` (CA92.1) and disk-space (E174.1) declared |
 | Permission strings | Four `INFOPLIST_KEY_NS*UsageDescription` entries, each saying what the sensor is for and that nothing leaves the phone |
-| Launch screen | `INFOPLIST_KEY_UILaunchScreen_Generation = YES` |
+| Launch screen | Black, from the `LaunchBackground` colour, declared in `Config/Info.plist` with generation off — so the launch matches the default true-black look in Light mode too |
 | Orientation | Portrait only (`INFOPLIST_KEY_UISupportedInterfaceOrientations`), matching R-1 |
 | Background modes | `Config/Info.plist` — `location` and nothing else. Xcode's generator has no build setting for `UIBackgroundModes`, so that one key lives in a partial plist the generated keys are merged on top of. The microphone and camera deliberately have no mode (R-83) |
 | Screenshots | `docs/screenshots/` — Simulator captures, used in the README. The numbers in them are synthetic |
@@ -61,6 +61,23 @@ The Simulator has no sensors: everything Readout shows there comes from `MockSen
 not honest until it has:
 
 - [ ] Every one of the 19 readings produces a sensible value on a real iPhone.
+- [ ] **The Attitude tool (R-86, R-87).** Hold the phone upright and tap Recentre: the model
+      faces you. Tip it forward, roll it, turn on the spot: the model does the same, the right
+      way round, in every pose including upright. Push the phone sideways: the model sways the
+      way it moved and settles. Watch for sway caused by turning alone, and check frame rate and
+      warmth over a few minutes on a ProMotion phone.
+- [ ] **The spirit level's bubble rises to the high side** on both axes, flat and on each of the
+      four edges, and a long edge reads near 0°, not 90° (R-32).
+- [ ] With Location refused: Acceleration, Orientation and the level still run, and the compass
+      reads magnetic north and says so (R-63, R-33).
+- [ ] A first-ever recording that includes Coordinates: answer the location prompt, lock the
+      phone, and the recording carries on — Coordinates was not dropped (R-38, R-82).
+- [ ] With the Sound meter open, start a location-only recording and lock the phone: no orange
+      microphone indicator while Readout is in the background (R-83).
+- [ ] Open the Sound meter, then switch to another tab: the orange indicator goes out and stays
+      out. The same for the Light meter and the green indicator (R-64).
+- [ ] The sound level starts at the room's level when the meter opens, not 20 dB low (R-66).
+- [ ] Move between tabs during a location recording: the CSV has no duplicated rows (R-45).
 - [ ] The permission flow — each of the four prompts appears when it should, and a refusal
       leaves the rest of the app working.
 - [ ] High (50 Hz) recording actually reaches 50 Hz from Core Motion (R-39).

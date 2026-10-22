@@ -29,6 +29,10 @@ final class RecordingService {
     /// Set when a recording could not start, was cut short, or could not be saved.
     var failure: RecordingFailure?
 
+    /// The recording most recently saved, for the brief "Saved" confirmation. Without it a
+    /// recording ended with nothing but a haptic and a bar sliding away.
+    private(set) var lastSaved: SavedRecording?
+
     /// False when SwiftData could not open its store and the app fell back to an in-memory
     /// one. Sessions cannot be listed or saved, and — crucially — nothing on disk may be
     /// treated as an orphan, because the empty store knows about none of it.
@@ -197,6 +201,7 @@ final class RecordingService {
         hub.setBackgroundLocationUpdates(false)
         leases.forEach(hub.release)
         leases = []
+        hub.stopKeptReadings()
 
         let tracks = writers.map { $0.finish() }
         let failedToWrite = writers.contains { $0.hasFailed }
@@ -207,8 +212,12 @@ final class RecordingService {
 
         if recorded.isEmpty {
             // Nothing arrived — a recording stopped within a moment of starting, or every
-            // reading stayed silent. An empty session is clutter, so it is dropped.
+            // reading stayed silent. An empty session is clutter, so it is dropped — but said
+            // so, rather than leaving somebody looking for a recording that was never kept.
             store.deleteFolder(for: identifier)
+            report(.init(kind: .nothingRecorded, message: """
+                No samples arrived before the recording stopped, so there was nothing to keep.
+                """))
         } else {
             save(
                 identifier: identifier,
@@ -269,6 +278,7 @@ final class RecordingService {
         context.insert(session)
         do {
             try context.save()
+            lastSaved = SavedRecording(identifier: identifier, name: session.name)
         } catch {
             context.delete(session)
             store.deleteFolder(for: identifier)
@@ -373,10 +383,15 @@ final class RecordingService {
 
     // MARK: - Saved sessions
 
+    /// Whether a name can be given to a recording: anything but blank. The rename field asks
+    /// this to keep its button disabled, rather than accepting a blank name and ignoring it.
+    static func isValidName(_ name: String) -> Bool {
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     func rename(_ session: RecordingSession, to name: String) {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        session.name = trimmed
+        guard Self.isValidName(name) else { return }
+        session.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         try? context.save()
     }
 
@@ -422,7 +437,14 @@ final class RecordingService {
             context.insert(session)
             known.insert(checkpoint.identifier)
         }
-        try? context.save()
+        // A checkpoint is the only thing a recovered session can be rebuilt from, and an
+        // unknown folder is deleted below as an orphan. If saving failed, both are left alone
+        // for the next launch to try again, rather than losing the recording outright.
+        do {
+            try context.save()
+        } catch {
+            return
+        }
         for identifier in known {
             store.removeCheckpoint(for: identifier)
         }
@@ -433,14 +455,34 @@ final class RecordingService {
 /// Something that went wrong with a recording, and how badly (R-40).
 struct RecordingFailure: Equatable {
     enum Kind: Int, Comparable {
+        case nothingRecorded
         case samplesDropped
         case stoppedAtLimit
         case couldNotStart
         case discarded
 
         static func < (lhs: Kind, rhs: Kind) -> Bool { lhs.rawValue < rhs.rawValue }
+
+        /// The alert's title says what happened, so the message underneath can explain it.
+        var title: String {
+            switch self {
+            case .nothingRecorded: "Nothing was recorded"
+            case .samplesDropped: "Some samples are missing"
+            case .stoppedAtLimit: "Recording saved"
+            case .couldNotStart: "Couldn't start recording"
+            case .discarded: "Recording not saved"
+            }
+        }
     }
 
     let kind: Kind
     let message: String
+}
+
+/// A recording that has just been saved, for the confirmation shown as it ends.
+struct SavedRecording: Equatable, Identifiable {
+    let identifier: UUID
+    let name: String
+
+    var id: UUID { identifier }
 }

@@ -9,8 +9,14 @@ import SwiftUI
 @MainActor
 @Observable
 final class SensorHub {
-    /// The latest value per reading, at provider rate.
-    private(set) var samples: [ReadingID: SensorSample] = [:]
+    /// The latest value, history and sparkline trail of each reading, one observable cell
+    /// apiece and all made up front.
+    ///
+    /// These used to be three dictionaries on the hub itself, so a view that read one reading
+    /// was invalidated by every other reading's samples as well — the detail view of the
+    /// barometer redrew at the accelerometer's 60 Hz. The dictionary is fixed after `init` and
+    /// not itself observed; each cell is, so a view now follows only what it reads.
+    @ObservationIgnored private let cells: [ReadingID: ReadingCell]
 
     /// Called with every sample a provider delivers, before the history buffer decimates it
     /// to 10 Hz. Set by `RecordingService`, which needs the full rate to record at 50 Hz
@@ -28,10 +34,6 @@ final class SensorHub {
     private let device = DeviceProvider()
     private let mock = MockSensorSource()
 
-    private var buffers: [ReadingID: SampleBuffer] = [:]
-    /// A short trail of the tile's single value, kept separately so drawing 19 sparklines
-    /// never walks the full history ring.
-    private var trails: [ReadingID: [Double]] = [:]
     /// The outstanding leases per reading and the rate each one asked for, so a view wanting
     /// display rate is not downgraded when another view wanting 10 Hz goes away.
     private var leases: [ReadingID: [UUID: ActivationRate]] = [:]
@@ -46,6 +48,9 @@ final class SensorHub {
 
     init(settings: AppSettings) {
         self.settings = settings
+        cells = Dictionary(uniqueKeysWithValues: ReadingID.allCases.map { reading in
+            (reading, ReadingCell(wraps: ReadingCatalog.descriptor(reading).channelWraps))
+        })
         let providers: [any SensorProvider] = [motion, altimeter, pedometer, location, audio, light, device]
         for provider in providers {
             for reading in provider.readings {
@@ -64,8 +69,10 @@ final class SensorHub {
         // Location's answer arrives after the request returns, so the provider reports it
         // back and whatever was leased in the meantime starts then (R-54).
         location.onAuthorizationChange = { [weak self] in
-            self?.permissions.refresh()
-            self?.restartLeases()
+            guard let self else { return }
+            permissions.refresh()
+            motion.isLocationAuthorized = location.permissionStatus.isGranted
+            restartLeases()
         }
         for reading in ReadingID.allCases {
             #if targetEnvironment(simulator)
@@ -90,6 +97,8 @@ final class SensorHub {
     /// Pushes the user's preferences into the providers that need them.
     func apply(_ settings: AppSettings) {
         motion.includesGravity = settings.accelerationIncludesGravity
+        mock.includesGravity = settings.accelerationIncludesGravity
+        motion.isLocationAuthorized = location.permissionStatus.isGranted
         location.usesTrueNorth = settings.usesTrueNorth
         // The per-model correction first, then the user's own on top of it (R-10, R-66).
         audio.calibrationOffset = DeviceCalibration.soundOffset() + settings.soundCalibrationOffset
@@ -138,13 +147,30 @@ final class SensorHub {
 
     /// Stops every sensor without forgetting who asked for it, so the foreground can resume
     /// exactly what was running (R-64).
-    func suspend() {
+    ///
+    /// `kept` is what a recording that carries on in the background is logging (R-82). Only
+    /// those keep running. Leaving the hub alone altogether, as it used to for such a
+    /// recording, also kept every reading the screen behind it had leased — an open Sound
+    /// meter kept the microphone live with Readout in the background, which R-83 rules out.
+    func suspend(keeping kept: Set<ReadingID> = []) {
         guard !isSuspended else { return }
         isSuspended = true
+        for (reading, provider) in running where !kept.contains(reading) {
+            provider.stop(reading)
+            running[reading] = nil
+        }
+    }
+
+    /// Stops what a background recording kept running, once that recording has ended. Its
+    /// own leases are gone by then, but a screen behind it may lease the same reading — the
+    /// compass holding Coordinates — and that lease alone kept location running with Readout
+    /// in the background. It all comes back on resume. Does nothing in the foreground.
+    func stopKeptReadings() {
+        guard isSuspended else { return }
         for (reading, provider) in running {
             provider.stop(reading)
+            running[reading] = nil
         }
-        running.removeAll()
     }
 
     func resume() {
@@ -221,68 +247,132 @@ final class SensorHub {
     // MARK: - Values and history
 
     func sample(_ reading: ReadingID) -> SensorSample? {
-        samples[reading]
+        cells[reading]?.sample
     }
 
     /// The gravity vector the spirit level works from (R-32). On an iPhone this is Core
     /// Motion's own vector; where only an attitude exists — the Simulator's synthetic
-    /// orientation — it is rebuilt from pitch and roll so the tool stays demoable (R-71).
+    /// orientation — it is rebuilt from that, so the tool stays demoable (R-71).
     var gravity: Vector3? {
         if let gravity = motion.gravity { return gravity }
-        guard let sample = samples[.orientation], sample.values.count >= 2 else { return nil }
-        return LevelMaths.gravity(pitchDegrees: sample.values[0], rollDegrees: sample.values[1])
+        return syntheticAttitude.map(AttitudeMaths.gravity)
+    }
+
+    /// The phone's attitude, for the 3D view (R-86). Core Motion's quaternion on an iPhone;
+    /// rebuilt from the synthetic pitch, roll and yaw in the Simulator.
+    var attitude: Attitude? {
+        motion.attitude ?? syntheticAttitude
+    }
+
+    /// The push the user is giving the phone, in g, with gravity taken out whatever the
+    /// Include gravity setting says (R-86).
+    var userAcceleration: Vector3? {
+        if let user = motion.userAcceleration { return user }
+        #if targetEnvironment(simulator)
+        guard let sample = cells[.acceleration]?.sample, sample.values.count >= 3 else { return nil }
+        var user = Vector3(x: sample.values[0], y: sample.values[1], z: sample.values[2])
+        if settings.accelerationIncludesGravity, let gravity {
+            user = Vector3(x: user.x - gravity.x, y: user.y - gravity.y, z: user.z - gravity.z)
+        }
+        return user
+        #else
+        return nil
+        #endif
+    }
+
+    /// The Simulator's stand-in for Core Motion's attitude. Never used on an iPhone: there
+    /// the readings' last samples outlive a stop, and a level or 3D view rebuilt from them
+    /// would show the old tilt — or the last push — as if it were live (P-2).
+    private var syntheticAttitude: Attitude? {
+        #if targetEnvironment(simulator)
+        guard let sample = cells[.orientation]?.sample, sample.values.count >= 3 else { return nil }
+        return AttitudeMaths.attitude(
+            pitchDegrees: sample.values[0],
+            rollDegrees: sample.values[1],
+            yawDegrees: sample.values[2]
+        )
+        #else
+        nil
+        #endif
     }
 
     /// Why a reading a view is holding has stopped arriving, when iOS says so. Shown in
     /// place of the value: a number that has stopped being true is worse than none (P-2).
     ///
-    /// The microphone is the one case iOS reports — a call, Siri or another app takes it —
-    /// and the engine comes back by itself when it is handed back (R-34, R-66).
+    /// iOS reports it for the microphone — a call, Siri or another app takes it — and for the
+    /// camera, which another app or the phone's own heat can take away. Both come back by
+    /// themselves when they are handed back (R-34, R-35, R-66).
     func stalledReason(_ reading: ReadingID) -> String? {
-        guard reading == .soundLevel, isActive(reading), audio.status == .interrupted else {
+        guard isActive(reading) else { return nil }
+        switch reading {
+        case .soundLevel where audio.status == .interrupted:
+            return "Paused — something else is using the microphone"
+        case .light where light.isInterrupted:
+            return "Paused — the camera is not available right now"
+        default:
             return nil
         }
-        return "Paused — something else is using the microphone"
     }
 
     func buffer(_ reading: ReadingID) -> SampleBuffer {
-        buffers[reading] ?? SampleBuffer()
+        cells[reading]?.buffer ?? SampleBuffer()
     }
 
+    /// Starts the statistics again. A view whose stats read "since you opened this" calls
+    /// it as it opens; the history is kept, so the chart does not empty (R-26).
     func resetStats(_ reading: ReadingID) {
-        buffers[reading]?.resetStats()
+        cells[reading]?.buffer.resetStats()
     }
 
     func clearHistory(_ reading: ReadingID) {
-        buffers[reading]?.removeAll()
-        trails[reading] = nil
+        guard let cell = cells[reading] else { return }
+        cell.buffer.removeAll()
+        cell.trail = []
     }
 
     /// The last few seconds of a tile's single value, for its sparkline (R-16).
     func trail(_ reading: ReadingID) -> [Double] {
-        trails[reading] ?? []
+        cells[reading]?.trail ?? []
     }
 
     private func receive(_ reading: ReadingID, _ sample: SensorSample) {
-        samples[reading] = sample
+        guard let cell = cells[reading] else { return }
+        cell.sample = sample
         sampleObserver?(reading, sample)
-        let appended = buffers[reading, default: SampleBuffer()].append(sample)
+        // Asked first, so a sample the buffer would drop is not a change to it: anything
+        // observing the history redraws at the history's 10 Hz, not at the provider's rate.
+        guard cell.buffer.accepts(sample) else { return }
+        cell.buffer.append(sample)
         // A non-finite value would put a NaN into the sparkline's path, which CoreGraphics
         // rejects and draws as a break in the line.
-        guard appended,
-              let value = ReadingCatalog.descriptor(reading).summaryValue(sample),
-              value.isFinite
-        else { return }
-        var trail = trails[reading] ?? []
+        guard let value = ReadingCatalog.descriptor(reading).summaryValue(sample), value.isFinite else {
+            return
+        }
+        var trail = cell.trail
         trail.append(value)
         if trail.count > Self.trailLength {
             trail.removeFirst(trail.count - Self.trailLength)
         }
-        trails[reading] = trail
+        cell.trail = trail
     }
 
     /// About six seconds at the 10 Hz the history buffer decimates to.
     private static let trailLength = 60
+}
+
+/// One reading's live state: its latest sample, the decimated history behind its chart and
+/// statistics, and the trail behind its sparkline. Observed on its own, so a view follows only
+/// the readings it shows.
+@MainActor
+@Observable
+final class ReadingCell {
+    var sample: SensorSample?
+    var buffer: SampleBuffer
+    var trail: [Double] = []
+
+    init(wraps: [AngleWrap?]) {
+        buffer = SampleBuffer(wraps: wraps)
+    }
 }
 
 /// One view's claim on one reading, handed out by `SensorHub.activate(_:rate:)`.

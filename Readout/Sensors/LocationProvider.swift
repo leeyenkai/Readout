@@ -1,5 +1,6 @@
 import CoreLocation
 import Foundation
+import UIKit
 
 /// The location group and heading, from the app's single `CLLocationManager` (R-63).
 @MainActor
@@ -13,11 +14,11 @@ final class LocationProvider: NSObject, SensorProvider {
 
     /// Called when iOS reports a new authorisation state. Set by `SensorHub`, which uses it
     /// to start the readings that were already leased but waiting on the answer (R-54).
-    ///
-    /// Core Location is the one permission whose request cannot be awaited:
-    /// `requestWhenInUseAuthorization()` returns long before the prompt is dismissed, so the
-    /// caller has nothing to wait for and must be told afterwards instead.
     var onAuthorizationChange: (() -> Void)?
+
+    /// Callers waiting in `requestAuthorization()` for the user to answer the prompt.
+    private var authorizationWaiters: [CheckedContinuation<Void, Never>] = []
+    private var authorizationWatchdog: Task<Void, Never>?
 
     private(set) var permissionStatus: PermissionStatus = .notDetermined
     /// iOS asks the user to wave the phone when this is poor (R-69).
@@ -98,8 +99,59 @@ final class LocationProvider: NSObject, SensorProvider {
         }
     }
 
-    func requestAuthorization() {
-        manager.requestWhenInUseAuthorization()
+    /// Asks for When In Use and returns once the user has answered.
+    ///
+    /// `requestWhenInUseAuthorization()` itself returns long before the prompt is dismissed.
+    /// Treating it as the answer is what made a first journey recording quietly start without
+    /// its location readings: they were still "not determined" on the next line, so they were
+    /// left out, the session was judged foreground-only, and locking the phone ended it.
+    ///
+    /// The answer arrives through `locationManagerDidChangeAuthorization`. A watchdog covers
+    /// the case where no prompt ever appears — Location Services switched off for the whole
+    /// phone puts up a different alert and never reports back — by giving up once the app has
+    /// been back in front for a moment, so the caller is never left waiting for ever.
+    func requestAuthorization() async {
+        guard permissionStatus == .notDetermined else { return }
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            authorizationWaiters.append(continuation)
+            guard authorizationWaiters.count == 1 else { return }
+            manager.requestWhenInUseAuthorization()
+            startAuthorizationWatchdog()
+        }
+    }
+
+    private func startAuthorizationWatchdog() {
+        authorizationWatchdog?.cancel()
+        authorizationWatchdog = Task { [weak self] in
+            var activeFor: TimeInterval = 0
+            var sawPrompt = false
+            let step: TimeInterval = 0.25
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(step))
+                guard let self, !self.authorizationWaiters.isEmpty else { return }
+                // While the prompt is up the app is inactive; only time spent back in front
+                // with no answer counts towards giving up. Until a prompt has been seen at
+                // all the wait is longer, so one slow to appear is not taken for no answer.
+                if UIApplication.shared.applicationState == .active {
+                    activeFor += step
+                } else {
+                    sawPrompt = true
+                    activeFor = 0
+                }
+                if activeFor >= (sawPrompt ? 1.5 : 6) {
+                    self.resumeAuthorizationWaiters()
+                    return
+                }
+            }
+        }
+    }
+
+    private func resumeAuthorizationWaiters() {
+        authorizationWatchdog?.cancel()
+        authorizationWatchdog = nil
+        let waiters = authorizationWaiters
+        authorizationWaiters = []
+        waiters.forEach { $0.resume() }
     }
 
     // MARK: - Publishing
@@ -113,23 +165,32 @@ final class LocationProvider: NSObject, SensorProvider {
                 values: [location.coordinate.latitude, location.coordinate.longitude]
             ))
         }
+        // Core Location marks a figure it cannot give with a negative accuracy or value. Those
+        // are published as "no value" rather than clamped to zero: a course of 0 is due north,
+        // and a speed of 0 drags every average towards standing still. A missing value leaves
+        // an empty cell in the CSV and is skipped by the statistics (R-45, P-2).
         if active.contains(.gpsAltitude) {
-            output?(.gpsAltitude, SensorSample(time: time, values: [location.altitude]))
+            let isValid = location.verticalAccuracy >= 0
+            output?(.gpsAltitude, SensorSample(
+                time: time,
+                values: [isValid ? location.altitude : .nan],
+                note: isValid ? nil : "No vertical fix yet"
+            ))
         }
         if active.contains(.speed) {
-            let speed = max(location.speed, 0)
+            let isValid = location.speed >= 0
             output?(.speed, SensorSample(
                 time: time,
-                values: [speed],
-                note: location.speed < 0 ? "No fix" : nil
+                values: [isValid ? location.speed : .nan],
+                note: isValid ? nil : "No speed reported yet"
             ))
         }
         if active.contains(.course) {
-            let course = location.course
+            let isValid = location.course >= 0
             output?(.course, SensorSample(
                 time: time,
-                values: [max(course, 0)],
-                note: course < 0 ? "Stand still and no course is reported" : nil
+                values: [isValid ? location.course : .nan],
+                note: isValid ? nil : "No course while standing still"
             ))
         }
         if active.contains(.locationAccuracy) {
@@ -167,8 +228,12 @@ final class LocationProvider: NSObject, SensorProvider {
 // is marked `@preconcurrency` and the methods stay on the main actor with the rest of the class.
 extension LocationProvider: @preconcurrency CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.last else { return }
-        publish(location)
+        // Every fix, oldest first. Core Location batches them when delivery is delayed — which
+        // is routine in the background — and publishing only the last one left gaps in a
+        // journey's CSV and its route.
+        for location in locations {
+            publish(location)
+        }
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
@@ -183,6 +248,9 @@ extension LocationProvider: @preconcurrency CLLocationManagerDelegate {
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let previous = permissionStatus
         permissionStatus = Self.status(from: manager.authorizationStatus)
+        if permissionStatus != .notDetermined {
+            resumeAuthorizationWaiters()
+        }
         guard permissionStatus != previous else { return }
         // The hub decides what to start: a reading leased while the prompt was still up has
         // no entry in `active`, so starting the manager here would leave the updates arriving

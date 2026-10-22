@@ -14,6 +14,9 @@ struct NewRecordingSheet: View {
     @State private var rate: RecordingRate = .medium
     @State private var isStarting = false
     @State private var refused: [SensorPermission] = []
+    /// Set when some of the chosen readings can run and some cannot, so the user decides
+    /// whether to start without them rather than finding out from the recording.
+    @State private var partial: PartialStart?
     @State private var didPreselect = false
 
     var body: some View {
@@ -33,6 +36,7 @@ struct NewRecordingSheet: View {
                 } footer: {
                     Text("\(rate.detail). High applies to the motion readings; location, air pressure and the step counter arrive at their own rate whatever you choose.")
                 }
+                .themedRows()
 
                 ForEach(ReadingGroup.allCases) { group in
                     let readings = hub.availableReadings(in: group)
@@ -42,6 +46,7 @@ struct NewRecordingSheet: View {
                                 row(for: descriptor)
                             }
                         }
+                        .themedRows()
                     }
                 }
 
@@ -62,34 +67,55 @@ struct NewRecordingSheet: View {
                         }
 
                         if verdict == .stopsWithoutLocation, canAddCoordinates {
-                            Button("Add Coordinates so it keeps running") {
-                                chosen.insert(.coordinates)
+                            Button("Add Coordinates so it keeps running", systemImage: "plus.circle.fill") {
+                                withReadoutAnimation { _ = chosen.insert(.coordinates) }
                             }
                             .font(.footnote.weight(.semibold))
                         }
                     } header: {
                         Text("Leaving the app")
                     }
+                    .themedRows()
+                    .transition(.opacity)
                 }
             }
-            .navigationTitle("New Recording")
+            .motion(.readoutSnappy, value: chosen.isEmpty)
+            .navigationTitle("New recording")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Start") {
-                        Task { await start() }
+                    if isStarting {
+                        ProgressView()
+                    } else {
+                        Button("Start") {
+                            Task { await start() }
+                        }
+                        .fontWeight(.semibold)
+                        .disabled(chosen.isEmpty)
                     }
-                    .fontWeight(.semibold)
-                    .disabled(chosen.isEmpty || isStarting)
                 }
             }
-            .alert("Some readings were left out", isPresented: isShowingRefusal) {
+            .alert("Nothing can be recorded yet", isPresented: isShowingRefusal) {
                 Button("OK") { refused = [] }
             } message: {
                 Text(refusalMessage)
+            }
+            .alert(
+                partial.map { "Start without \($0.leftOutNames)?" } ?? "",
+                isPresented: Binding(get: { partial != nil }, set: { if !$0 { partial = nil } }),
+                presenting: partial
+            ) { start in
+                Button("Start") {
+                    recorder.start(readings: start.usable, rate: rate)
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                Button("Cancel", role: .cancel) {}
+            } message: { start in
+                Text("\(start.permissionNames) \(start.permissionCount == 1 ? "isn't" : "aren't") allowed, so \(start.leftOutNames) would be left out. The rest can record now.")
             }
             .onAppear(perform: preselectOnce)
             .themedSurface()
@@ -99,10 +125,12 @@ struct NewRecordingSheet: View {
     private func row(for descriptor: ReadingDescriptor) -> some View {
         let isChosen = chosen.contains(descriptor.id)
         return Button {
-            if isChosen {
-                chosen.remove(descriptor.id)
-            } else {
-                chosen.insert(descriptor.id)
+            withReadoutAnimation {
+                if isChosen {
+                    chosen.remove(descriptor.id)
+                } else {
+                    chosen.insert(descriptor.id)
+                }
             }
         } label: {
             HStack(spacing: 12) {
@@ -129,8 +157,9 @@ struct NewRecordingSheet: View {
                 }
                 Spacer(minLength: 0)
                 Image(systemName: isChosen ? "checkmark.circle.fill" : "circle")
-                    .font(.body)
-                    .foregroundStyle(isChosen ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .font(.title3)
+                    .foregroundStyle(isChosen ? AnyShapeStyle(.tint) : AnyShapeStyle(.tertiary))
+                    .contentTransition(.symbolEffect(.replace))
             }
             // Without this the gap between the name and the tick is not a tap target, and
             // half the row does nothing.
@@ -142,19 +171,29 @@ struct NewRecordingSheet: View {
     }
 
     /// Asks for whatever the chosen readings need, then starts with the ones that are allowed
-    /// (R-38). A reading whose permission was refused is named rather than silently dropped.
+    /// (R-38). A reading whose permission was refused is named rather than silently dropped:
+    /// with nothing allowed the sheet says so, and with some allowed it asks before starting
+    /// without the rest. Starting regardless used to drop them without a word.
     private func start() async {
         isStarting = true
         for permission in neededPermissions {
             await hub.requestPermission(permission)
         }
         let usable = chosen.filter { hub.availability($0).isUsable }
-        let missing = chosen.subtracting(usable)
-            .compactMap { ReadingCatalog.descriptor($0).permission }
+        let leftOut = chosen.subtracting(usable)
+        let missing = leftOut.compactMap { ReadingCatalog.descriptor($0).permission }
         isStarting = false
 
         guard !usable.isEmpty else {
             refused = Array(Set(missing)).sorted { $0.title < $1.title }
+            return
+        }
+        guard leftOut.isEmpty else {
+            partial = PartialStart(
+                usable: Array(usable),
+                leftOut: ReadingCatalog.all.map(\.id).filter(leftOut.contains),
+                permissions: Array(Set(missing)).sorted { $0.title < $1.title }
+            )
             return
         }
         recorder.start(readings: Array(usable), rate: rate)
@@ -188,6 +227,24 @@ struct NewRecordingSheet: View {
     /// at all, the offer would be a button that changes nothing (R-7).
     private var canAddCoordinates: Bool {
         hub.availability(.coordinates) != .unavailable && !chosen.contains(.coordinates)
+    }
+
+    /// The readings that can start and the ones that would be left out, for the question
+    /// asked before starting without them.
+    private struct PartialStart {
+        let usable: [ReadingID]
+        let leftOut: [ReadingID]
+        let permissions: [SensorPermission]
+
+        var leftOutNames: String {
+            ListFormatter.localizedString(byJoining: leftOut.map { ReadingCatalog.descriptor($0).name })
+        }
+
+        var permissionNames: String {
+            ListFormatter.localizedString(byJoining: permissions.map(\.title))
+        }
+
+        var permissionCount: Int { permissions.count }
     }
 
     private func preselectOnce() {

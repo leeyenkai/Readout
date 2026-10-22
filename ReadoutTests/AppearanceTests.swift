@@ -20,9 +20,17 @@ struct AppearanceTests {
         }
     }
 
-    @Test("System is the default and the only one that leaves the appearance alone")
+    @Test("True black is the default, and leads the picker")
+    func blackIsTheDefault() {
+        #expect(ThemeID.default == .dark)
+        #expect(ThemeCatalog.all.first?.id == .dark)
+        let dark = ThemeCatalog.theme(.dark)
+        #expect(dark.colourScheme == .dark)
+        #expect(dark.backdrop == [Color.black])
+    }
+
+    @Test("System is the only theme that leaves the appearance alone")
     func systemFollowsThePhone() {
-        #expect(ThemeCatalog.all.first?.id == .system)
         #expect(ThemeCatalog.theme(.system).colourScheme == nil)
         #expect(ThemeCatalog.theme(.system).backdrop.isEmpty)
         for theme in ThemeCatalog.all where theme.id != .system {
@@ -43,7 +51,7 @@ struct AppearanceTests {
     func themePersists() {
         let defaults = throwawayDefaults()
         let settings = AppSettings(defaults: defaults)
-        #expect(settings.themeIdentifier == .system)
+        #expect(settings.themeIdentifier == .dark)
 
         settings.themeIdentifier = .midnightBlue
         settings.interfaceScale = .larger
@@ -56,10 +64,18 @@ struct AppearanceTests {
 
     /// A theme a later version added and this one has never heard of should not take the app
     /// down, or leave it with no look at all.
-    @Test("An unknown theme falls back to System rather than failing")
+    @Test("An unknown theme falls back to the default rather than failing")
     func unknownThemeFallsBack() {
         let defaults = throwawayDefaults()
         defaults.set("aurora", forKey: "settings.theme")
+        #expect(AppSettings(defaults: defaults).themeIdentifier == .dark)
+    }
+
+    /// Changing the default must not move anybody who chose System on purpose.
+    @Test("A stored choice of System is kept")
+    func storedSystemIsKept() {
+        let defaults = throwawayDefaults()
+        defaults.set("system", forKey: "settings.theme")
         #expect(AppSettings(defaults: defaults).themeIdentifier == .system)
     }
 
@@ -73,7 +89,7 @@ struct AppearanceTests {
         #expect(settings.hasAppearanceChanges)
 
         settings.resetAppearance()
-        #expect(settings.themeIdentifier == .system)
+        #expect(settings.themeIdentifier == .dark)
         #expect(settings.interfaceScale == .default)
         #expect(!settings.hasAppearanceChanges)
     }

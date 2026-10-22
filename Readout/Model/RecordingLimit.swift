@@ -48,21 +48,28 @@ enum RecordingLimit: String, CaseIterable, Identifiable, Codable, Sendable {
         }
     }
 
-    /// The most a session may write, given what the volume will spare.
+    /// The most a session may write in all, given what it has written so far and what the
+    /// volume will spare.
+    ///
+    /// `availableBytes` is the free space *now*, which already excludes everything this
+    /// session has written. The open-ended limit's room is therefore what is free beyond the
+    /// reserve, on top of what is already on disk. Comparing the bytes written against the
+    /// current free space alone counted them twice, and a session that started with 10 GB
+    /// free stopped at about half of it, saying the phone was out of storage.
     ///
     /// `availableBytes` is nil when the volume will not say. The fixed options do not care —
     /// their ceiling is their own — and the open-ended one falls back to the largest fixed
     /// ceiling rather than running unbounded on an answer nobody gave.
-    func byteCeiling(availableBytes: Int64?) -> Int {
+    func byteCeiling(writtenBytes: Int = 0, availableBytes: Int64?) -> Int {
         switch self {
         case .twoHours: return 100 * Self.megabyte
         case .sixHours: return 300 * Self.megabyte
         case .twelveHours: return 600 * Self.megabyte
         case .untilStorageRunsOut:
             guard let availableBytes else { return 600 * Self.megabyte }
-            let spare = availableBytes - Int64(Self.reserveBytes)
-            guard spare > 0 else { return 0 }
-            return Int(min(spare, Int64(Int.max)))
+            let written = max(0, writtenBytes)
+            let spare = max(0, availableBytes - Int64(Self.reserveBytes))
+            return written + Int(min(spare, Int64(Int.max - written)))
         }
     }
 
@@ -93,7 +100,7 @@ enum RecordingLimit: String, CaseIterable, Identifiable, Codable, Sendable {
     /// How full a running session is against whichever limit it will reach first, 0 to 1, so
     /// the recording bar can warn before it gets there (Q-4).
     func fraction(elapsed: TimeInterval, byteCount: Int, availableBytes: Int64?) -> Double {
-        let ceiling = byteCeiling(availableBytes: availableBytes)
+        let ceiling = byteCeiling(writtenBytes: byteCount, availableBytes: availableBytes)
         let bySize = ceiling > 0 ? Double(byteCount) / Double(ceiling) : 1
         let byTime = duration.map { elapsed / $0 } ?? 0
         return min(1, max(0, max(bySize, byTime)))
@@ -102,7 +109,7 @@ enum RecordingLimit: String, CaseIterable, Identifiable, Codable, Sendable {
     /// Why a session stopped, for the message the bar puts up. Nil while it is still inside
     /// both limits.
     func reasonToStop(elapsed: TimeInterval, byteCount: Int, availableBytes: Int64?) -> String? {
-        if byteCount >= byteCeiling(availableBytes: availableBytes) {
+        if byteCount >= byteCeiling(writtenBytes: byteCount, availableBytes: availableBytes) {
             switch self {
             case .untilStorageRunsOut:
                 return """

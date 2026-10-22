@@ -6,7 +6,8 @@ Working agreement for AI agents and humans in this repo. Read this before changi
 ## 1. What this project is
 
 **Readout** — a free, native iPhone app that shows the phone's built-in sensors as clear,
-live readings, plus four instruments (spirit level, compass, sound meter, light meter).
+live readings, plus five instruments (attitude in 3D, spirit level, compass, sound meter,
+light meter).
 Hobby project: no ads, no in-app purchases, no accounts, no network calls.
 
 The spec is [`docs/SPEC.md`](docs/SPEC.md). It is the source of truth for scope and carries
@@ -60,13 +61,16 @@ Readout/
 │   ├── Sensors/            Sensor hub + one provider per framework
 │   ├── Features/
 │   │   ├── Readings/       Tile grid, tiles, detail view, chart, stats
-│   │   ├── Tools/          Spirit level, compass, sound meter, light meter
+│   │   ├── Tools/          Attitude (3D, RealityKit — `Attitude/` holds the model and
+│   │   │                    stage), spirit level, compass, sound meter, light meter
 │   │   ├── Recordings/     Recording and CSV export (v0.2), the live session view and
 │   │   │                    the route panel (v0.5, R-76, R-79)
 │   │   ├── Onboarding/     The one-time first-run explainer (v0.3)
 │   │   └── Settings/       Settings sheet, stored preferences, calibration (R-75),
 │   │                        themes and interface size (R-77, R-78)
-│   ├── Support/            Theme and interface-size modifiers, haptics and other helpers
+│   ├── Support/            Theme and interface-size modifiers, the design system
+│   │                        (`DesignSystem.swift`: metrics, cards, badges, control rows)
+│   │                        and the animation vocabulary (`Motion.swift`)
 │   ├── AppIcon.icon/       Icon Composer document — open it in Icon Composer, not a text editor
 │   ├── PrivacyInfo.xcprivacy
 │   └── Assets.xcassets/
@@ -130,6 +134,12 @@ Readout/
   (R-53 — English at launch).
 - Numbers shown to the user go through `Model/ValueFormatting.swift`, never raw
   `String(format:)` in a view.
+- Screens are built from `Support/DesignSystem.swift` — `ReadoutScreen`, `.readoutCard()`,
+  `CardHeader`, `StatusBadge`, `InstrumentControls`, `Metrics` — rather than hand-rolled
+  paddings and radii, so a card on one screen is the same card on the next.
+- Animation goes through `Support/Motion.swift`: the named curves, `.motion(_:value:)` and
+  `withReadoutAnimation`, all of which stand down under Reduce Motion (R-50). A raw
+  `withAnimation` or `.animation` has to check Reduce Motion itself.
 
 ## 8. Changes and releases
 

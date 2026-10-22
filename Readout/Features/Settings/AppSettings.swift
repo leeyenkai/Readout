@@ -24,11 +24,15 @@ final class AppSettings {
         readingOrder = (defaults.array(forKey: Key.readingOrder) as? [String] ?? [])
             .compactMap(ReadingID.init(rawValue:))
         hasSeenWelcome = defaults.object(forKey: Key.hasSeenWelcome) as? Bool ?? false
-        themeIdentifier = defaults.decoded(ThemeID.self, forKey: Key.theme) ?? .system
+        themeIdentifier = defaults.decoded(ThemeID.self, forKey: Key.theme) ?? ThemeID.default
         interfaceScale = (defaults.object(forKey: Key.interfaceScale) as? Int)
             .flatMap(InterfaceScale.init(rawValue:)) ?? .default
         recordingLimit = defaults.decoded(RecordingLimit.self, forKey: Key.recordingLimit) ?? .default
         usesAppleMaps = defaults.object(forKey: Key.usesAppleMaps) as? Bool ?? false
+        levelZero = defaults.data(forKey: Key.levelZero)
+            .flatMap { try? JSONDecoder().decode(LevelZero.self, from: $0) } ?? .none
+        attitudeShowsAxes = defaults.object(forKey: Key.attitudeShowsAxes) as? Bool ?? true
+        attitudeSways = defaults.object(forKey: Key.attitudeSways) as? Bool ?? true
     }
 
     var unitSystem: UnitSystem { didSet { defaults.encode(unitSystem, forKey: Key.unitSystem) } }
@@ -61,7 +65,8 @@ final class AppSettings {
     }
 
     /// The chosen look (R-77). Stored as the identifier; `theme` resolves it, so a raw value
-    /// this version does not know falls back to `.system` instead of failing.
+    /// this version does not know falls back to the default instead of failing. Nothing is
+    /// stored until the user picks one, so somebody who chose System keeps it.
     var themeIdentifier: ThemeID {
         didSet { defaults.encode(themeIdentifier, forKey: Key.theme) }
     }
@@ -87,13 +92,29 @@ final class AppSettings {
         didSet { defaults.set(usesAppleMaps, forKey: Key.usesAppleMaps) }
     }
 
+    /// What Zero has taken off the spirit level, per mode, kept between visits: a zero is a
+    /// correction for this phone and its case, not for one look at the tool (R-32).
+    var levelZero: LevelZero {
+        didSet { defaults.set(try? JSONEncoder().encode(levelZero), forKey: Key.levelZero) }
+    }
+
+    /// Whether the 3D phone shows its three axes (R-86).
+    var attitudeShowsAxes: Bool {
+        didSet { defaults.set(attitudeShowsAxes, forKey: Key.attitudeShowsAxes) }
+    }
+
+    /// Whether the 3D phone sways with the pushes it is given (R-86).
+    var attitudeSways: Bool {
+        didSet { defaults.set(attitudeSways, forKey: Key.attitudeSways) }
+    }
+
     /// Whether anything on the Appearance screen has been changed, so it can offer to undo it.
     var hasAppearanceChanges: Bool {
-        themeIdentifier != .system || interfaceScale != .default
+        themeIdentifier != ThemeID.default || interfaceScale != .default
     }
 
     func resetAppearance() {
-        themeIdentifier = .system
+        themeIdentifier = ThemeID.default
         interfaceScale = .default
     }
 
@@ -179,6 +200,9 @@ final class AppSettings {
         static let interfaceScale = "settings.interfaceScale"
         static let recordingLimit = "settings.recordingLimit"
         static let usesAppleMaps = "settings.usesAppleMaps"
+        static let levelZero = "settings.levelZero"
+        static let attitudeShowsAxes = "settings.attitudeShowsAxes"
+        static let attitudeSways = "settings.attitudeSways"
     }
 }
 

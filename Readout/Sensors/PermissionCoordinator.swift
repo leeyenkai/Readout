@@ -30,11 +30,10 @@ final class PermissionCoordinator {
     }
 
     func status(of permission: SensorPermission) -> PermissionStatus {
-        // Location is read from the provider rather than from the cache. Its request cannot
-        // be awaited — `requestWhenInUseAuthorization()` returns before the user has answered
-        // — so a cache refreshed straight after asking records the old `notDetermined`, and
-        // every location reading stayed behind its "Tap to allow" card until the app was
-        // backgrounded and brought back (R-54, R-55).
+        // Location is read from the provider rather than from the cache: the provider hears
+        // about every change of mind, including one made in the Settings app, and a cache
+        // refreshed at the wrong moment kept every location reading behind its "Tap to allow"
+        // card until the app was backgrounded and brought back (R-54, R-55).
         if permission == .locationWhenInUse, let locationProvider {
             return locationProvider.permissionStatus
         }
@@ -56,7 +55,7 @@ final class PermissionCoordinator {
         case .motionFitness:
             await requestMotionFitness()
         case .locationWhenInUse:
-            locationProvider?.requestAuthorization()
+            await locationProvider?.requestAuthorization()
         case .microphone:
             _ = await AVAudioApplication.requestRecordPermission()
         case .camera:

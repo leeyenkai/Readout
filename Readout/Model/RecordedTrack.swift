@@ -31,7 +31,14 @@ struct RecordedChannelSummary: Codable, Hashable, Sendable {
         self.count = count
     }
 
+    /// A channel that never had a finite value is saved as zeros with a count of nothing,
+    /// rather than as NaN: the summary is encoded as JSON, which has no way to write NaN, and
+    /// the session view shows "—" for an empty channel either way.
     init(_ stats: ChannelStats) {
+        guard !stats.isEmpty else {
+            self.init(minimum: 0, maximum: 0, mean: 0, count: 0)
+            return
+        }
         self.init(minimum: stats.minimum, maximum: stats.maximum, mean: stats.mean, count: stats.count)
     }
 }
@@ -51,7 +58,10 @@ struct RecordedTrackBuilder {
     init(reading: ReadingID, fileName: String) {
         self.reading = reading
         self.fileName = fileName
+        wraps = ReadingCatalog.descriptor(reading).channelWraps
     }
+
+    private let wraps: [AngleWrap?]
 
     mutating func add(_ sample: SensorSample) {
         sampleCount += 1
@@ -59,11 +69,11 @@ struct RecordedTrackBuilder {
         // only has a pace once you are walking — so a new channel is taken up where it
         // appears, without losing the values of the ones already there.
         for (index, value) in sample.values.enumerated() {
-            if stats.indices.contains(index) {
-                stats[index].add(value)
-            } else {
-                stats.append(ChannelStats(first: value))
+            while !stats.indices.contains(index) {
+                let channel = stats.count
+                stats.append(ChannelStats(wrap: wraps.indices.contains(channel) ? wraps[channel] : nil))
             }
+            stats[index].add(value)
         }
     }
 

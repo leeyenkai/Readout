@@ -23,7 +23,7 @@ enum ReadingCatalog {
             explainer: Explainer(
                 what: "The accelerometer measures how hard the phone is being pushed along each of its three axes. With gravity removed you are seeing only movement; include gravity and a phone lying still reads 1 g downwards.",
                 precision: "Read straight from the accelerometer through Core Motion, at up to a few hundred samples a second. Small readings while the phone sits still are sensor noise, not movement.",
-                tryThis: "Hold the phone flat and drop your hand a few centimetres: Z dips as you fall, then spikes as you stop."
+                tryThis: "Hold the phone flat and drop your hand a few centimetres: Z swings one way as your hand drops and the other way as it stops."
             ),
             comparisons: ComparisonScale(
                 references: [
@@ -76,8 +76,8 @@ enum ReadingCatalog {
             source: "Core Motion, device motion",
             channels: [
                 ReadingChannel("Pitch", .angle, axis: .x),
-                ReadingChannel("Roll", .angle, axis: .y),
-                ReadingChannel("Yaw", .angle, axis: .z),
+                ReadingChannel("Roll", .angle, axis: .y, wrap: .halfTurn),
+                ReadingChannel("Yaw", .angle, axis: .z, wrap: .halfTurn),
             ],
             tile: .channel(0),
             explainer: Explainer(
@@ -130,8 +130,10 @@ enum ReadingCatalog {
             group: .motion,
             symbol: "location.north.line",
             source: "Core Location, heading",
-            channels: [ReadingChannel("Heading", .angle)],
-            permission: .locationWhenInUse,
+            channels: [ReadingChannel("Heading", .angle, wrap: .fullTurn)],
+            // No permission of its own: the magnetometer needs none. Only pointing at true
+            // north needs Location, and the compass asks for that when it is switched on
+            // (SPEC §3, reading 5).
             tile: .channel(0),
             explainer: Explainer(
                 what: "Which way the top of the phone is pointing, in degrees clockwise from north. Magnetic north is what the magnetometer sees; true north is the geographic pole, and finding it needs your location.",
@@ -341,7 +343,7 @@ enum ReadingCatalog {
             group: .location,
             symbol: "arrow.triangle.turn.up.right.diamond",
             source: "Core Location",
-            channels: [ReadingChannel("Course", .angle)],
+            channels: [ReadingChannel("Course", .angle, wrap: .fullTurn)],
             permission: .locationWhenInUse,
             tile: .channel(0),
             explainer: Explainer(

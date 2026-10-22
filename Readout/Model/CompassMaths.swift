@@ -28,6 +28,17 @@ enum CompassMaths {
         return (heading - bearing + 540).truncatingRemainder(dividingBy: 360) - 180
     }
 
+    /// The next heading, kept continuous with the one before: 350° followed by 10° is 370°.
+    ///
+    /// The dial turns to the heading with an animation, and animating from 359° to 1° turns
+    /// the long way round — a full spin through south to move two degrees. Keeping the turns
+    /// means the dial only ever takes the short way.
+    static func unwrapped(previous: Double, next: Double) -> Double {
+        guard previous.isFinite else { return normalised(next) }
+        guard next.isFinite else { return previous }
+        return previous + drift(from: normalised(previous), to: normalised(next))
+    }
+
     /// A heading folded into 0..<360, so a provider reporting 361° or −1° still lands where
     /// it belongs on the dial.
     static func normalised(_ degrees: Double) -> Double {

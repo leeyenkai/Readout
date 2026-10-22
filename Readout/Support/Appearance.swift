@@ -49,6 +49,11 @@ struct ThemedSurface: ViewModifier {
                 ThemeBackdrop(theme: settings.theme).ignoresSafeArea()
             }
             .preferredColorScheme(settings.theme.colourScheme)
+            // A sheet does not reliably inherit the tint of the view that presented it, and
+            // falls back to the asset catalogue's accent — which is why the welcome screen
+            // and every sheet came up green under a blue theme.
+            .tint(settings.theme.accent)
+            .environment(\.themeAccent, settings.theme.accent)
             .environment(\.systemTypeSize, base)
             .dynamicTypeSize(settings.interfaceScale.applied(to: base))
     }
@@ -63,6 +68,26 @@ extension View {
     /// Puts the theme's backdrop behind a sheet, which inherits everything else.
     func themedSurface() -> some View {
         modifier(ThemedSurface())
+    }
+
+    /// Gives a Form or List section's rows the theme's own row colour. Applied per section:
+    /// a row background is something a row inherits from its section, not from the form.
+    func themedRows() -> some View {
+        modifier(ThemedRows())
+    }
+}
+
+/// The row colour of a tinted theme, behind every row of a section. System and Dark keep the
+/// system's own grouped cell, which is already right on their backgrounds.
+private struct ThemedRows: ViewModifier {
+    @Environment(AppSettings.self) private var settings
+
+    func body(content: Content) -> some View {
+        if let colour = settings.theme.rowBackground {
+            content.listRowBackground(colour)
+        } else {
+            content
+        }
     }
 }
 

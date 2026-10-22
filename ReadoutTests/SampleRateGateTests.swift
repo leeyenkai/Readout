@@ -84,10 +84,10 @@ struct SampleRateGateTests {
         #expect(onTime)
     }
 
-    @Test("A zero interval is the uncapped case")
+    @Test("A zero interval keeps every sample, however close together")
     func zeroInterval() {
         var gate = SampleRateGate(interval: 0)
-        let accepted = (0..<3).map { _ in gate.accepts(start) }
+        let accepted = (0..<3).map { gate.accepts(start.addingTimeInterval(Double($0) * 0.001)) }
         #expect(accepted == [true, true, true])
     }
 
@@ -131,5 +131,23 @@ struct SampleRateGateTests {
         // should still be one sample a second.
         #expect(kept(rate: .low, cadence: .capped, streamHertz: 10, seconds: 10) == 10)
         #expect(kept(rate: .high, cadence: .capped, streamHertz: 10, seconds: 10) == 100)
+    }
+
+    /// Core Location replays its last fix every time a provider is started, and the hub starts
+    /// one whenever another screen takes a lease. Those replays must not become extra rows.
+    @Test("A sample that is not newer than the last one kept is never kept again", arguments: [
+        RecordingCadence.free, .driven,
+    ])
+    func replayedSamplesAreDropped(cadence: RecordingCadence) {
+        var gate = SampleRateGate(rate: .low, cadence: cadence)
+        let fix = start.addingTimeInterval(5)
+        let first = gate.accepts(fix)
+        let replayed = gate.accepts(fix)
+        let older = gate.accepts(fix.addingTimeInterval(-1))
+        let later = gate.accepts(fix.addingTimeInterval(10))
+        #expect(first)
+        #expect(!replayed)
+        #expect(!older)
+        #expect(later)
     }
 }

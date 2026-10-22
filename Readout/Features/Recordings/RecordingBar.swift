@@ -25,6 +25,7 @@ struct RecordingBar: View {
                             .font(.subheadline.weight(.semibold))
                             .monospacedDigit()
                             .contentTransition(.numericText())
+                            .motion(.readoutSnappy, value: recorder.elapsed)
                         Text("\(RecordingNaming.sampleCountText(recorder.sampleCount)) · \(recorder.rate.title)")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
@@ -32,9 +33,10 @@ struct RecordingBar: View {
                         // A session stops itself at its limit, so it says so before it gets
                         // there rather than ending without warning (Q-4).
                         if isNearLimit {
-                            Text("Nearing the session limit")
+                            Text("Nearing the recording limit")
                                 .font(.caption2)
                                 .foregroundStyle(.orange)
+                                .transition(.blurReplace)
                         }
                     }
 
@@ -45,14 +47,18 @@ struct RecordingBar: View {
             .buttonStyle(.plain)
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Recording, \(RecordingNaming.elapsedText(recorder.elapsed)), \(RecordingNaming.sampleCountText(recorder.sampleCount))")
-            .accessibilityHint(isNearLimit ? "Nearing the session limit. Opens the running recording." : "Opens the running recording")
+            .accessibilityHint(isNearLimit ? "Nearing the recording limit. Opens the running recording." : "Opens the running recording")
 
-            Button("Stop") {
+            // The same red Stop as the running recording's own screen.
+            Button("Stop", systemImage: "stop.fill", role: .destructive) {
                 recorder.stop()
             }
+            .labelStyle(.titleAndIcon)
             .font(.subheadline.weight(.semibold))
             .buttonStyle(.glassProminent)
+            .tint(.red)
         }
+        .motion(.readoutSnappy, value: isNearLimit)
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .glassEffect(.regular, in: .capsule)

@@ -20,9 +20,6 @@ enum CalibrationTarget: String, Identifiable, CaseIterable, Sendable {
         }
     }
 
-    /// The row that opens this sheet, in Settings and in the tool.
-    static let buttonTitle = "Calibrate against a meter"
-
     var unitSymbol: String {
         switch self {
         case .sound: "dB"
@@ -121,6 +118,7 @@ struct CalibrationSheet: View {
                     correction
                 }
             }
+            .motion(.readoutSnappy, value: outcome)
             .navigationTitle(target.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -128,13 +126,18 @@ struct CalibrationSheet: View {
                     Button("Done") { dismiss() }
                 }
             }
-            .onAppear { lease = hub.activate(target.reading) }
+            .onAppear {
+                guard lease == nil else { return }
+                lease = hub.activate(target.reading)
+            }
             .onDisappear {
                 hub.release(lease)
                 lease = nil
             }
             .themedSurface()
         }
+        .presentationDetents([.large, .medium])
+        .presentationDragIndicator(.visible)
     }
 
     // MARK: - Sections
@@ -175,6 +178,7 @@ struct CalibrationSheet: View {
         } footer: {
             Text(target.instructions)
         }
+        .themedRows()
     }
 
     private var entry: some View {
@@ -196,29 +200,36 @@ struct CalibrationSheet: View {
 
             switch outcome {
             case .applied(let message):
-                Label(message, systemImage: "checkmark.circle")
+                Label(message, systemImage: "checkmark.circle.fill")
                     .font(.footnote)
                     .foregroundStyle(.green)
+                    .transition(.blurReplace)
             case .failed(let message):
-                Label(message, systemImage: "exclamationmark.triangle")
+                Label(message, systemImage: "exclamationmark.triangle.fill")
                     .font(.footnote)
                     .foregroundStyle(.orange)
+                    .transition(.blurReplace)
             case nil:
                 EmptyView()
             }
         } header: {
             Text("The meter reads")
         }
+        .themedRows()
     }
 
     private var correction: some View {
         Section {
-            LabeledContent("Your correction", value: currentCorrectionText)
-            Button("Clear", action: clear)
+            LabeledContent("Your correction") {
+                Text(currentCorrectionText)
+                    .contentTransition(.numericText())
+            }
+            Button("Clear correction", role: .destructive, action: clear)
                 .disabled(!hasCorrection)
         } footer: {
             Text(target.footnote)
         }
+        .themedRows()
     }
 
     // MARK: - State

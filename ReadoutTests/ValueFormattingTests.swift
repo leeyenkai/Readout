@@ -102,4 +102,21 @@ struct ValueFormattingTests {
         #expect(ValueFormatting.relativeTime(secondsAgo: 150) == "−3 min")
         #expect(ValueFormatting.relativeTime(secondsAgo: .nan).isEmpty)
     }
+
+    /// 1° 59′ 59.96″ rounds to a whole two degrees, not to "59′ 60.0″".
+    @Test("Seconds that round up carry into the minutes and degrees")
+    func sexagesimalCarries() {
+        let almostTwo = 2 - 0.04 / 3_600
+        #expect(ValueFormatting.sexagesimal(almostTwo, positive: "N", negative: "S") == "2° 0′ 0.0″ N")
+        let almostHalf = 0.5 - 0.03 / 3_600
+        #expect(ValueFormatting.sexagesimal(almostHalf, positive: "E", negative: "W") == "0° 30′ 0.0″ E")
+    }
+
+    @Test("A value that rounds to zero is not shown with a minus sign")
+    func noNegativeZero() {
+        #expect(ValueFormatting.decimal(-0.001, digits: 2) == "0.00")
+        #expect(ValueFormatting.decimal(-0.4, digits: 0) == "0")
+        #expect(ValueFormatting.decimal(-0.006, digits: 2) == "-0.01")
+    }
 }
+

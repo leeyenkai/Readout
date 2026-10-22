@@ -10,6 +10,9 @@ final class MockSensorSource: SensorProvider {
     let readings: Set<ReadingID> = Set(ReadingID.allCases)
     var output: ((ReadingID, SensorSample) -> Void)?
 
+    /// Mirrors the Include gravity setting, as the real motion provider does (R-30).
+    var includesGravity = false
+
     private var active: Set<ReadingID> = []
     private var timer: Timer?
     private var interval: TimeInterval = 0
@@ -57,6 +60,20 @@ final class MockSensorSource: SensorProvider {
         }
     }
 
+    /// Held up at a comfortable reading angle and drifting about it, the way a phone in a hand
+    /// does, rather than a value that only ever ramps.
+    private var pitch: Double { 35 + 25 * sin(phase * 0.5) }
+    private var roll: Double { 20 * sin(phase * 0.73) }
+    private var yaw: Double { 50 * sin(phase * 0.21) }
+
+    /// One push-and-stop every `period` seconds: a single sine cycle lasting 0.8 s, so the
+    /// phone speeds up and then slows back down to rest.
+    private func push(period: Double, offset: Double) -> Double {
+        let time = (phase + offset).truncatingRemainder(dividingBy: period)
+        guard time < 0.8 else { return 0 }
+        return sin(time / 0.8 * 2 * .pi)
+    }
+
     /// Plausible-looking but obviously synthetic values: slow sine waves with a little noise.
     private func sample(for reading: ReadingID) -> SensorSample {
         let slow = sin(phase * 0.6)
@@ -67,11 +84,30 @@ final class MockSensorSource: SensorProvider {
 
         switch reading {
         case .acceleration:
-            return SensorSample(values: [slow * 0.2 + noise, medium * 0.2 + noise, fast * 0.1 - 1 + noise], note: note)
+            // A phone held in the hand: still most of the time, with a push and a stop every
+            // few seconds, so the 3D view's sway has something to show (R-86).
+            // Less noise than the other readings: a still phone's accelerometer is quiet, and
+            // more would keep the sway twitching.
+            let jitter = noise * 0.25
+            var user = Vector3(
+                x: push(period: 6, offset: 0) * 0.25 + jitter,
+                y: push(period: 6, offset: 3) * 0.2 + jitter,
+                z: medium * 0.02 + jitter
+            )
+            if includesGravity {
+                let gravity = LevelMaths.gravity(pitchDegrees: pitch, rollDegrees: roll)
+                user = Vector3(x: user.x + gravity.x, y: user.y + gravity.y, z: user.z + gravity.z)
+            }
+            return SensorSample(values: [user.x, user.y, user.z], note: note)
         case .rotationRate:
-            return SensorSample(values: [slow * 40, medium * 25, fast * 60], note: note)
+            // The rates the orientation below is actually turning at, so the two agree.
+            return SensorSample(values: [
+                25 * 0.5 * cos(phase * 0.5),
+                20 * 0.73 * cos(phase * 0.73),
+                50 * 0.21 * cos(phase * 0.21),
+            ], note: note)
         case .orientation:
-            return SensorSample(values: [slow * 20, medium * 15, (phase * 8).truncatingRemainder(dividingBy: 360) - 180], note: note)
+            return SensorSample(values: [pitch, roll, yaw], note: note)
         case .magneticField:
             return SensorSample(values: [22 + slow * 4, -14 + medium * 4, 38 + fast * 3], note: note)
         case .heading:

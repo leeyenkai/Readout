@@ -12,20 +12,19 @@ struct AppearanceView: View {
             Section {
                 ForEach(ThemeCatalog.all) { theme in
                     ThemeRow(theme: theme, isChosen: theme.id == settings.themeIdentifier) {
-                        withAnimation(.snappy) { settings.themeIdentifier = theme.id }
+                        withReadoutAnimation(.readoutSmooth) { settings.themeIdentifier = theme.id }
                     }
                 }
             } header: {
                 Text("Theme")
             } footer: {
                 Text("""
-                    A theme sets the colour behind the readings and the accent on top of \
-                    them. Everything else stays the system's own: the glass cards, the tab \
-                    bar and the toolbars all take their tint from whatever is behind them. \
-                    System follows your phone's Light and Dark setting; the rest choose for \
-                    themselves.
+                    A theme sets the colour behind the readings and the accent on top; the glass \
+                    cards and bars take their tint from it. Dark is true black, kindest to an \
+                    OLED screen. System follows your phone's Light and Dark setting.
                     """)
             }
+            .themedRows()
 
             Section {
                 Picker("Size", selection: Binding(
@@ -41,20 +40,19 @@ struct AppearanceView: View {
                 Text("Interface size")
             } footer: {
                 Text("""
-                    \(settings.interfaceScale.detail) It moves the whole app along the same \
-                    scale iOS uses, so the tiles, the charts and the big readouts grow \
-                    together and stay laid out properly. Set the text size itself in \
-                    Settings › Display & Brightness, or turn on larger accessibility sizes \
-                    there and this will follow them.
+                    \(settings.interfaceScale.detail) Everything grows together, on top of the \
+                    text size set in Settings › Display & Brightness.
                     """)
             }
+            .themedRows()
 
             if settings.hasAppearanceChanges {
                 Section {
                     Button("Reset appearance", role: .destructive) {
-                        withAnimation(.snappy) { settings.resetAppearance() }
+                        withReadoutAnimation { settings.resetAppearance() }
                     }
                 }
+                .themedRows()
             }
         }
         .themedSurface()
@@ -86,7 +84,9 @@ private struct ThemeRow: View {
                 Spacer(minLength: 0)
 
                 Image(systemName: isChosen ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isChosen ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .font(.title3)
+                    .foregroundStyle(isChosen ? AnyShapeStyle(.tint) : AnyShapeStyle(.tertiary))
+                    .contentTransition(.symbolEffect(.replace))
             }
             // Without this the gap between the name and the tick answers no taps.
             .contentShape(.rect)
@@ -135,8 +135,8 @@ private struct SizeSample: View {
                 .foregroundStyle(.secondary)
             Spacer(minLength: 0)
             Text("Sample")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Sample reading at the chosen size")

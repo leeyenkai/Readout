@@ -49,7 +49,7 @@ struct RootView: View {
             return isRecording ? .start : .stop
         }
         .alert(
-            "Recording",
+            recorder.failure?.kind.title ?? "Recording",
             isPresented: Binding(
                 get: { recorder.failure != nil },
                 set: { if !$0 { recorder.failure = nil } }
@@ -74,38 +74,57 @@ struct RootView: View {
 
     /// Leaving the app ends a recording — unless the session is one that may carry on (R-82).
     ///
-    /// A qualifying session keeps every lease it holds and nothing is suspended: Core Location
-    /// holds the app alive, and the other providers go on delivering because the process is
-    /// never suspended. A session that does not qualify — one with no location reading, or one
-    /// recording the microphone or the camera, which never run unattended — stops and saves
-    /// with an interrupted note, exactly as every session did before (R-41).
+    /// A qualifying session keeps the readings it is logging: Core Location holds the app
+    /// alive, and the other providers go on delivering because the process is never
+    /// suspended. Everything else stops, including whatever the screen behind it was showing —
+    /// the microphone and the camera above all, which never run unattended (R-83). A session
+    /// that does not qualify stops and saves with an interrupted note, exactly as every
+    /// session did before (R-41).
     ///
     /// A recording also keeps its sensors through `.inactive`, or glancing at Control Centre
     /// would leave the session running but recording nothing.
     private func leaveForeground() {
-        guard !recorder.continuesInBackground else { return }
-        recorder.stop(interrupted: true)
-        hub.suspend()
+        if recorder.continuesInBackground {
+            hub.suspend(keeping: Set(recorder.readings))
+        } else {
+            recorder.stop(interrupted: true)
+            hub.suspend()
+        }
     }
 }
 
 /// Floats the recording bar just above the tab bar, in whichever tab is open, for as long as
-/// a recording runs (R-40).
+/// a recording runs (R-40) — and, as it ends, the confirmation that it was saved.
 ///
 /// Each tab gets its own inset rather than the whole `TabView`: an inset on the TabView lands
 /// on top of the tab bar, and the system's bottom accessory slot keeps its glass tray even
 /// when it has nothing to show.
 private struct RecordingBarInset: ViewModifier {
     @Environment(RecordingService.self) private var recorder
+    @State private var saved: SavedRecording?
 
     func body(content: Content) -> some View {
         content.safeAreaInset(edge: .bottom) {
-            if recorder.isRecording {
-                RecordingBar()
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            ZStack {
+                if recorder.isRecording {
+                    RecordingBar()
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else if let saved {
+                    SavedToast(recording: saved)
+                        .transition(.blurReplace.combined(with: .scale(0.92, anchor: .bottom)))
+                }
             }
         }
-        .animation(.snappy, value: recorder.isRecording)
+        .motion(.readoutSpring, value: recorder.isRecording)
+        .motion(.readoutSpring, value: saved)
+        .onChange(of: recorder.lastSaved) { _, recording in
+            guard let recording else { return }
+            saved = recording
+            Task {
+                try? await Task.sleep(for: .seconds(2.6))
+                if saved == recording { saved = nil }
+            }
+        }
     }
 }
 

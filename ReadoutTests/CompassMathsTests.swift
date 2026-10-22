@@ -80,4 +80,21 @@ struct CompassMathsTests {
         #expect(CompassMaths.drift(from: .nan, to: 90) == 0)
         #expect(CompassMaths.drift(from: 90, to: .nan) == 0)
     }
+
+    @Test("The dial takes the short way round through north", arguments: [
+        (359.0, 1.0, 361.0), (1.0, 359.0, -1.0), (180.0, 181.0, 181.0), (720.0, 5.0, 725.0), (-350.0, 15.0, -345.0),
+    ])
+    func unwrapping(previous: Double, next: Double, expected: Double) {
+        #expect(abs(CompassMaths.unwrapped(previous: previous, next: next) - expected) < 0.000_1)
+    }
+
+    @Test("Many small steps past north keep counting rather than spinning back")
+    func longRun() {
+        var angle = 350.0
+        for heading in stride(from: 352.0, through: 380, by: 2) {
+            angle = CompassMaths.unwrapped(previous: angle, next: heading.truncatingRemainder(dividingBy: 360))
+        }
+        #expect(abs(angle - 380) < 0.000_1)
+    }
 }
+

@@ -6,48 +6,50 @@ import SwiftUI
 struct LightMeterView: View {
     @Environment(SensorHub.self) private var hub
     @Environment(AppSettings.self) private var settings
-    @Environment(\.themeAccent) private var accent
+    @Environment(RecordingService.self) private var recorder
 
     @State private var lease: SensorLease?
-    @State private var isHeld = false
+    /// Leases are only ever taken while this is on screen. A tab switch hides the view without
+    /// destroying it, and giving the lease back changes the availability this reacts to — so
+    /// without the flag, leaving would start the camera again behind the user's back (R-64).
+    @State private var isVisible = false
     @State private var frozen: Double?
-    @State private var isFrontCamera = false
+    @State private var camera: AVCaptureDevice.Position = .back
     @State private var isCalibrating = false
+    /// Where the user last tapped to meter, in the preview's own coordinates.
+    @State private var spot: CGPoint?
+    @State private var spotLanding = false
+    /// Turns the preview over when the camera changes, so the switch reads as one.
+    @State private var flipAngle: Double = 0
 
     private let descriptor = ReadingCatalog.descriptor(.light)
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                switch hub.availability(.light) {
-                case .needsPermission(let permission):
-                    PermissionCard(permission: permission, isDenied: false) {
-                        await hub.requestPermission(permission)
-                    }
-                case .denied(let permission):
-                    PermissionCard(permission: permission, isDenied: true) {
-                        hub.permissions.openSettings()
-                    }
-                case .unavailable:
-                    UnavailableCard(name: "camera")
-                case .live, .ready:
-                    reading
-                    preview
-                    if let comparisons = descriptor.comparisons {
-                        ComparisonPanel(descriptor: descriptor, scale: comparisons, units: settings.displayUnits)
-                    }
-                    controls
-                    Text("Worked out from the camera's exposure settings, because iOS keeps the ambient light sensor to itself. Nothing is photographed or saved.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
+        ReadoutScreen {
+            switch hub.availability(.light) {
+            case .needsPermission(let permission):
+                PermissionCard(permission: permission, isDenied: false) {
+                    await hub.requestPermission(permission)
                 }
+            case .denied(let permission):
+                PermissionCard(permission: permission, isDenied: true) {
+                    hub.permissions.openSettings()
+                }
+            case .unavailable:
+                UnavailableCard(name: "camera")
+            case .live, .ready:
+                reading
+                preview
+                controls
+                if let comparisons = descriptor.comparisons {
+                    ComparisonPanel(descriptor: descriptor, scale: comparisons, units: settings.displayUnits)
+                }
+                Text("Worked out from the camera's exposure settings, because iOS keeps the ambient light sensor to itself. Nothing is photographed or saved.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 24)
         }
-        .scrollIndicators(.hidden)
-        .themedSurface()
         .navigationTitle("Light meter")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -55,13 +57,23 @@ struct LightMeterView: View {
                 RecordButton(readings: [.light])
             }
         }
-        .onAppear { syncActivation() }
+        .onAppear {
+            isVisible = true
+            // A recording logging light keeps the camera it started on, which may be the front.
+            camera = hub.light.position
+            syncActivation()
+        }
         .onDisappear {
+            isVisible = false
             hub.release(lease)
             lease = nil
-            hub.light.position = .back
+            // Back to the rear camera for next time — unless a recording is logging light, when
+            // changing camera under it would change what its lux column measures (R-67).
+            if !isRecordingLight {
+                hub.light.position = .back
+            }
         }
-        .onChange(of: hub.availability(.light)) { _, _ in syncActivation() }
+        .onChange(of: hub.availability(.light).isUsable) { _, _ in syncActivation() }
         .sheet(isPresented: $isCalibrating) {
             CalibrationSheet(target: .light)
         }
@@ -72,100 +84,185 @@ struct LightMeterView: View {
     /// leave an unbalanced claim behind, so the camera kept running — indicator and all —
     /// long after the user had walked away from the tool (R-19, R-64).
     private func syncActivation() {
-        guard hub.availability(.light).isUsable else { return }
+        guard isVisible, hub.availability(.light).isUsable else { return }
         guard lease == nil else { return }
         lease = hub.activate(.light)
     }
 
+    private var interruption: String? { hub.stalledReason(.light) }
 
     private var lux: Double? {
-        frozen ?? hub.sample(.light)?.value(0)
+        frozen ?? (interruption == nil ? hub.sample(.light)?.value(0) : nil)
     }
 
     private var reading: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(lux.map { "≈" + ValueFormatting.decimal($0, digits: 0) } ?? "—")
-                    .readoutValue(size: 58)
+                    .readoutValue(size: 64)
                     .monospacedDigit()
-                    .contentTransition(.numericText())
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
                 Text("lux")
-                    .font(.title2)
+                    .font(.title2.weight(.medium))
                     .foregroundStyle(.secondary)
             }
-            Text(isHeld ? "Held" : "Camera estimate")
-                .font(.caption)
-                .foregroundStyle(isHeld ? accent : Color.secondary)
+            Group {
+                if frozen != nil {
+                    StatusBadge(text: "Held", symbol: "pause.fill")
+                } else if let interruption {
+                    Label(interruption, systemImage: "pause.circle")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("\(camera == .front ? "Front" : "Rear") camera estimate")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .transition(.blurReplace)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 18)
-        .glassEffect(.regular, in: .rect(cornerRadius: 24))
+        .motion(.readoutSnappy, value: frozen != nil)
+        .readoutCard(padding: 20, alignment: .center)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(lux.map { "About \(ValueFormatting.decimal($0, digits: 0)) lux" } ?? "No reading")
+        .accessibilityLabel(lux.map { "About \(ValueFormatting.decimal($0, digits: 0)) lux\(frozen != nil ? ", held" : "")" } ?? "No reading")
     }
 
     private var preview: some View {
-        CameraPreview(session: hub.light.captureSession) { point in
-            hub.light.meter(at: point)
+        CameraPreview(session: hub.light.captureSession) { devicePoint, viewPoint in
+            hub.light.meter(at: devicePoint)
+            showSpot(at: viewPoint)
         }
-        .frame(height: 220)
-        .clipShape(.rect(cornerRadius: 22))
+        .frame(height: 230)
         .overlay {
-            // An empty black panel looks broken. It is what the Simulator shows, which has
-            // no camera to meter with — the reading beside it comes from the synthetic
-            // source there (R-71).
-            if !hub.light.captureSession.isRunning {
+            if !hub.light.isMetering {
+                // An empty black panel looks broken. It is what the Simulator shows, which
+                // has no camera to meter with — the reading above comes from the synthetic
+                // source there (R-71).
                 Label("No camera preview on this device", systemImage: "camera.metering.unknown")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
         }
+        .overlay {
+            if hub.light.isMetering {
+                GeometryReader { geometry in
+                    MeteringSpot(isLanding: spotLanding)
+                        .position(spot ?? CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2))
+                        .opacity(spot == nil ? 0.5 : 1)
+                }
+                .allowsHitTesting(false)
+            }
+        }
         .overlay(alignment: .bottomLeading) {
-            if hub.light.captureSession.isRunning {
+            if hub.light.isMetering {
                 Text("Tap to meter a spot")
-                    .font(.caption2)
+                    .font(.caption2.weight(.medium))
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .glassEffect(.regular, in: .capsule)
                     .padding(10)
             }
         }
+        .background(.black.opacity(0.25))
+        .clipShape(.rect(cornerRadius: Metrics.insetRadius))
+        .rotation3DEffect(.degrees(flipAngle), axis: (x: 0, y: 1, z: 0), perspective: 0.6)
+        .padding(4)
+        .glassEffect(.regular, in: .rect(cornerRadius: Metrics.insetRadius + 4))
         .accessibilityLabel("Camera preview. Tap to meter a spot.")
     }
 
-    /// A wrapping row, so a third control and large Dynamic Type do not push each other off
-    /// the screen (R-52).
+    private func showSpot(at point: CGPoint) {
+        spot = point
+        spotLanding = true
+        withReadoutAnimation(.readoutSpring) { spotLanding = false }
+    }
+
     private var controls: some View {
-        FlowRow(spacing: 10) {
-            Button(isHeld ? "Release" : "Hold") {
-                isHeld.toggle()
-                frozen = isHeld ? hub.sample(.light)?.value(0) : nil
-            }
-            .buttonStyle(.glass)
-            .accessibilityHint(isHeld ? "Lets the reading follow the camera again" : "Freezes the reading")
+        VStack(spacing: 12) {
+            InstrumentControls {
+                Button(frozen == nil ? "Hold" : "Release", systemImage: frozen == nil ? "pause.fill" : "play.fill") {
+                    withReadoutAnimation {
+                        frozen = frozen == nil ? hub.sample(.light)?.value(0) : nil
+                    }
+                }
+                .contentTransition(.symbolEffect(.replace))
+                .accessibilityHint(frozen == nil ? "Freezes the reading" : "Lets the reading follow the camera again")
 
-            Button(isFrontCamera ? "Front camera" : "Rear camera") {
-                isFrontCamera.toggle()
-                hub.light.position = isFrontCamera ? .front : .back
+                Button("Calibrate", systemImage: "slider.horizontal.3") { isCalibrating = true }
+                    .disabled(isRecordingLight)
             }
-            .buttonStyle(.glass)
-            .accessibilityHint("Switches which camera meters the light")
 
-            Button("Calibrate") { isCalibrating = true }
-                .buttonStyle(.glass)
+            Picker("Camera", selection: Binding(
+                get: { camera },
+                set: { switchCamera(to: $0) }
+            )) {
+                Text("Rear camera").tag(AVCaptureDevice.Position.back)
+                Text("Front camera").tag(AVCaptureDevice.Position.front)
+            }
+            .pickerStyle(.segmented)
+            // The two cameras need separate calibration (R-67), so a recording's light column
+            // stays with the one it started on.
+            .disabled(isRecordingLight)
+
+            if isRecordingLight {
+                Text("The camera and calibration are fixed while a recording is logging light.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
-        .font(.subheadline.weight(.medium))
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Turns the preview edge-on, changes camera while it cannot be seen, and turns it back —
+    /// a half turn each way rather than a whole one, which would leave the preview mirrored.
+    private func switchCamera(to position: AVCaptureDevice.Position) {
+        guard position != camera else { return }
+        camera = position
+        spot = nil
+        guard !UIAccessibility.isReduceMotionEnabled else {
+            hub.light.position = position
+            return
+        }
+        let direction: Double = position == .front ? 1 : -1
+        withAnimation(.easeIn(duration: 0.18)) { flipAngle = 90 * direction }
+        Task {
+            try? await Task.sleep(for: .milliseconds(180))
+            // Left mid-flip: the camera has already gone back to the rear for next time.
+            guard isVisible else { return }
+            hub.light.position = position
+            flipAngle = -90 * direction
+            withAnimation(.easeOut(duration: 0.24)) { flipAngle = 0 }
+        }
+    }
+
+    private var isRecordingLight: Bool { recorder.isRecording(.light) }
+}
+
+/// Where the camera is metering: a square that lands with a spring where the user tapped,
+/// as the Camera app's focus square does.
+private struct MeteringSpot: View {
+    let isLanding: Bool
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 6)
+            .strokeBorder(Color.yellow, lineWidth: 1.5)
+            .frame(width: 64, height: 64)
+            .overlay {
+                Circle()
+                    .fill(Color.yellow)
+                    .frame(width: 4, height: 4)
+            }
+            .scaleEffect(isLanding ? 1.45 : 1)
+            .opacity(isLanding ? 0.4 : 1)
+            .shadow(color: .black.opacity(0.4), radius: 2)
     }
 }
 
 /// Shows what the camera is metering. A preview layer only — Readout never receives a frame.
 struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
-    /// Gives the tapped point in the camera's own coordinate space.
-    let onTap: (CGPoint) -> Void
+    /// Gives the tapped point in the camera's own coordinate space, and in the view's.
+    let onTap: (CGPoint, CGPoint) -> Void
 
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
@@ -181,7 +278,7 @@ struct CameraPreview: UIViewRepresentable {
     }
 
     final class PreviewView: UIView {
-        var onTap: ((CGPoint) -> Void)?
+        var onTap: ((CGPoint, CGPoint) -> Void)?
 
         override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
 
@@ -191,7 +288,9 @@ struct CameraPreview: UIViewRepresentable {
 
         override init(frame: CGRect) {
             super.init(frame: frame)
-            backgroundColor = .secondarySystemBackground
+            // Clear, so the card behind shows until the first frame arrives rather than a
+            // grey panel that belongs to no theme.
+            backgroundColor = .clear
             addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(handleTap)))
         }
 
@@ -201,7 +300,7 @@ struct CameraPreview: UIViewRepresentable {
 
         @objc private func handleTap(_ recogniser: UITapGestureRecognizer) {
             let point = recogniser.location(in: self)
-            onTap?(previewLayer.captureDevicePointConverted(fromLayerPoint: point))
+            onTap?(previewLayer.captureDevicePointConverted(fromLayerPoint: point), point)
         }
     }
 }

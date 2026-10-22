@@ -10,34 +10,34 @@ readings — and explains what each one actually measures.
 
 Readout shows 19 readings across motion, environment, location and device activity, each with a
 live chart, min/max/average, a plain-English explainer and a scale of everyday comparisons
-("60 dB is a conversation; 85 dB is heavy traffic"). It adds four instruments: a spirit level,
-a compass, a sound meter and a light meter.
+("60 dB is a conversation; 85 dB is heavy traffic"). It adds five instruments: a 3D model of the
+phone that turns as yours does, a spirit level, a compass, a sound meter and a light meter.
 
 It records too: pick the readings you want, start a session at the top of a journey and watch
-it as it runs, then keep it, chart it, see the route it took and export it as CSV. Seven themes
-and an interface size make it yours.
+it as it runs, then keep it, chart it, see the route it took and export it as CSV. It opens in
+true black; seven themes and an interface size make it yours.
 
 It is a hobby project. No ads, no in-app purchases, no accounts, and nothing it measures ever
 leaves the phone. Readout makes no network request of its own; the single optional feature that
 causes one — showing a recorded route on Apple Maps rather than plotting it offline — is off
 until you turn it on, and Settings says which state you are in.
 
-| | | | |
-| --- | --- | --- | --- |
-| ![The readings grid](docs/screenshots/readings.png) | ![A reading's detail view](docs/screenshots/detail.png) | ![The compass](docs/screenshots/compass.png) | ![The sound meter](docs/screenshots/sound-meter.png) |
-| Readings | Detail, chart and stats | Compass | Sound meter |
+| ![The readings grid](docs/screenshots/readings.png) | ![The phone in 3D](docs/screenshots/attitude.png) | ![A reading's detail view](docs/screenshots/detail.png) | ![The compass](docs/screenshots/compass.png) | ![The sound meter](docs/screenshots/sound-meter.png) |
+| --- | --- | --- | --- | --- |
+| Readings | Attitude, in 3D | Detail, chart and stats | Compass | Sound meter |
 
 <sub>From the Simulator, where every number comes from a synthetic source — see
 [Build and run](#build-and-run).</sub>
 
 ## Status
 
-**v0.5.0 — logging a journey, and making it yours.** Every reading, every instrument, recording
-and CSV export, the app icon, a calibration you can carry out against a reference meter — and
-now a running session you can watch, the route a session logged, a session limit long enough
-for a real journey, seven themes and an interface size. It is ready to hand to somebody: clone
-it, set your own signing team, and it runs on your iPhone. There is no plan to put it on the
-App Store.
+**v0.6.0 — polish, black by default, and the phone in 3D.** Every reading, every instrument,
+recording and CSV export, routes, a calibration you can carry out against a reference meter,
+themes and an interface size — and now true black by default, one consistent design with
+animation that respects Reduce Motion, an Attitude tool that draws your phone in 3D, and the
+fixes from a correctness audit aimed squarely at what a real iPhone would do. It is ready to
+hand to somebody: clone it, set your own signing team, and it runs on your iPhone. There is no
+plan to put it on the App Store.
 
 A recording that includes your position carries on when you lock the phone or switch apps, so
 a journey survives going in a pocket; iOS shows the blue location indicator while it does. A
@@ -116,7 +116,8 @@ privacy manifest in the bundle says exactly that.
 Microphone audio and camera frames are read in memory to derive a level and are never saved.
 
 Permissions are requested only when a reading needs one: Motion & Fitness (pressure, altitude,
-steps), Location While Using (location group, true north), Microphone (sound), Camera (light).
+steps), Location While Using (location group, and pointing the compass at true north),
+Microphone (sound), Camera (light). The compass itself needs none.
 
 ## Repository layout
 

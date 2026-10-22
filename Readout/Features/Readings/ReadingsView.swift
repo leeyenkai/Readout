@@ -6,8 +6,14 @@ struct ReadingsView: View {
     @Environment(AppSettings.self) private var settings
     @State private var isEditing = false
     @State private var isShowingSettings = false
+    /// Set from Settings' "Show the welcome screen again", and acted on once Settings has
+    /// gone: putting the welcome sheet up while Settings was still being dismissed raced it.
+    @State private var showsWelcomeAfterSettings = false
     /// The grid's leases, so every reading it started is given back exactly once (R-64).
     @State private var leases: [ReadingID: SensorLease] = [:]
+    /// The tiles settle in once, as the app opens — not every time one scrolls into view.
+    @State private var hasArrived = false
+    @Namespace private var zoom
 
     private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
 
@@ -16,38 +22,36 @@ struct ReadingsView: View {
             ScrollView {
                 if isGridEmpty {
                     AllHiddenNotice {
-                        withAnimation(.snappy) { settings.showAllReadings() }
+                        withReadoutAnimation { settings.showAllReadings() }
                     }
                     .padding(.top, 48)
+                    .transition(.blurReplace)
                 }
 
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(ReadingGroup.allCases) { group in
-                        let readings = visibleReadings(in: group)
-                        if !readings.isEmpty {
-                            Section {
-                                ForEach(readings) { descriptor in
-                                    tile(for: descriptor)
-                                }
-                            } header: {
-                                GroupHeader(group: group)
-                            }
-                        }
+                        section(for: group)
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 24)
+                .padding(.horizontal, Metrics.screenPadding)
+                .padding(.bottom, Metrics.bottomPadding)
             }
             .scrollIndicators(.hidden)
             .navigationTitle("Readout")
             .navigationDestination(for: ReadingID.self) { reading in
                 ReadingDetailView(reading: reading)
+                    .navigationTransition(.zoom(sourceID: reading, in: zoom))
+            }
+            // A reading's detail view can open its instrument: Orientation opens the 3D view.
+            .navigationDestination(for: Tool.self) { tool in
+                tool.destination
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(isEditing ? "Done" : "Edit") {
-                        withAnimation(.snappy) { isEditing.toggle() }
+                        withReadoutAnimation { isEditing.toggle() }
                     }
+                    .fontWeight(isEditing ? .semibold : .regular)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Settings", systemImage: "gearshape") {
@@ -55,10 +59,23 @@ struct ReadingsView: View {
                     }
                 }
             }
-            .sheet(isPresented: $isShowingSettings) {
-                SettingsView()
+            .sheet(isPresented: $isShowingSettings, onDismiss: {
+                if showsWelcomeAfterSettings {
+                    showsWelcomeAfterSettings = false
+                    settings.hasSeenWelcome = false
+                }
+            }) {
+                SettingsView(showsWelcomeAgain: $showsWelcomeAfterSettings)
             }
-            .onAppear(perform: syncActivations)
+            .onAppear {
+                syncActivations()
+                // Long enough for the first screenful to have arrived; after that a tile
+                // scrolling into view simply appears.
+                Task {
+                    try? await Task.sleep(for: .seconds(1.2))
+                    hasArrived = true
+                }
+            }
             .onDisappear(perform: deactivateAll)
             .onChange(of: settings.hiddenReadings) { _, _ in syncActivations() }
             .onChange(of: isEditing) { _, _ in syncActivations() }
@@ -66,23 +83,45 @@ struct ReadingsView: View {
                 if isEditing {
                     EditModeBanner(
                         hiddenCount: settings.hiddenReadings.count,
-                        onShowAll: { settings.showAllReadings() },
-                        onResetOrder: { withAnimation(.snappy) { settings.resetOrder() } }
+                        onShowAll: { withReadoutAnimation { settings.showAllReadings() } },
+                        onResetOrder: { withReadoutAnimation { settings.resetOrder() } }
                     )
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
+            .motion(.readoutSnappy, value: isEditing)
             .themedSurface()
         }
     }
 
     @ViewBuilder
+    private func section(for group: ReadingGroup) -> some View {
+        let readings = visibleReadings(in: group)
+        if !readings.isEmpty {
+            Section {
+                ForEach(Array(readings.enumerated()), id: \.element.id) { index, descriptor in
+                    tile(for: descriptor)
+                        .arrival(delay: arrivalDelay(group: group, index: index), isActive: !hasArrived)
+                }
+            } header: {
+                GroupHeader(group: group)
+                    .arrival(delay: arrivalDelay(group: group, index: 0), isActive: !hasArrived)
+            }
+        }
+    }
+
+    /// A short stagger, group by group, so the grid fills in from the top.
+    private func arrivalDelay(group: ReadingGroup, index: Int) -> Double {
+        let groupIndex = ReadingGroup.allCases.firstIndex(of: group) ?? 0
+        return Double(groupIndex) * 0.08 + Double(index) * 0.035
+    }
+
+    @ViewBuilder
     private func tile(for descriptor: ReadingDescriptor) -> some View {
-        let availability = hub.availability(descriptor.id)
-        let tile = ReadingTile(
+        // The tile reads its own reading, so a new sample redraws that tile and nothing
+        // else; the grid itself never reads a sample (R-65).
+        let tile = LiveReadingTile(
             descriptor: descriptor,
-            availability: availability,
-            sample: hub.sample(descriptor.id),
-            trail: hub.trail(descriptor.id),
             units: settings.displayUnits,
             isDimmed: isEditing && settings.isHidden(descriptor.id)
         )
@@ -102,9 +141,9 @@ struct ReadingsView: View {
                             : AnyShapeStyle(.tint))
                         .padding(8)
                 }
-                .contentShape(.rect(cornerRadius: 20))
+                .contentShape(.rect(cornerRadius: Metrics.tileRadius))
                 .onTapGesture {
-                    withAnimation(.snappy) {
+                    withReadoutAnimation {
                         settings.setHidden(!settings.isHidden(descriptor.id), for: descriptor.id)
                     }
                 }
@@ -119,7 +158,7 @@ struct ReadingsView: View {
                 }
             .dropDestination(for: ReadingID.self) { dropped, _ in
                 guard let moved = dropped.first else { return false }
-                withAnimation(.snappy) { settings.move(moved, before: descriptor.id) }
+                withReadoutAnimation { settings.move(moved, before: descriptor.id) }
                 return true
             }
             // VoiceOver cannot drag, so the same reordering is reachable as actions.
@@ -133,14 +172,18 @@ struct ReadingsView: View {
         } else {
             NavigationLink(value: descriptor.id) {
                 tile
+                    .matchedTransitionSource(id: descriptor.id, in: zoom)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressableCard)
             // Long-press is the other way into edit mode, alongside the Edit button (R-22).
             .simultaneousGesture(
                 LongPressGesture(minimumDuration: 0.5).onEnded { _ in
-                    withAnimation(.snappy) { isEditing = true }
+                    withReadoutAnimation { isEditing = true }
                 }
             )
+            .sensoryFeedback(.impact(weight: .medium), trigger: isEditing) { _, editing in
+                editing && settings.hapticsEnabled
+            }
         }
     }
 
@@ -228,6 +271,7 @@ private struct EditModeBanner: View {
         HStack {
             Text(hiddenCount == 0 ? "Tap to hide · drag to reorder" : "\(hiddenCount) hidden")
                 .font(.footnote)
+                .contentTransition(.numericText())
             Spacer()
             if hiddenCount > 0 {
                 Button("Show all", action: onShowAll)

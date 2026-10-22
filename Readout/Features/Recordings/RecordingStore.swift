@@ -64,8 +64,18 @@ struct RecordingStore {
 
     /// Space the system is willing to give an important write, in bytes. Nil when the volume
     /// will not say, in which case the caller carries on rather than refusing to record.
+    ///
+    /// Asked of the nearest folder that exists. On a fresh install `Recordings` has not been
+    /// made yet, the question about it throws, and the very first recording used to start
+    /// without its free-space check at all.
     func availableBytes() -> Int64? {
-        try? root.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+        var candidate = root
+        while !fileManager.fileExists(atPath: candidate.path(percentEncoded: false)) {
+            let parent = candidate.deletingLastPathComponent()
+            guard parent != candidate else { return nil }
+            candidate = parent
+        }
+        return try? candidate.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
             .volumeAvailableCapacityForImportantUsage
     }
 

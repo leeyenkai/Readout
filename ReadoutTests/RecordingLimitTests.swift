@@ -111,9 +111,22 @@ struct RecordingLimitTests {
         let byStorage = try #require(RecordingLimit.untilStorageRunsOut.reasonToStop(
             elapsed: 60 * 60 * 20,
             byteCount: 900_000_000,
-            availableBytes: Int64(RecordingLimit.reserveBytes) + 800_000_000
+            availableBytes: Int64(RecordingLimit.reserveBytes)
         ))
         #expect(byStorage.contains("storage"))
+    }
+
+    /// The free space the volume reports already has the session's own files taken out of
+    /// it. Counting them again stopped a session at about half the room it had.
+    @Test("Bytes already written are not counted against the free space twice")
+    func writtenBytesCountOnce() {
+        let written = 900_000_000
+        let available = Int64(RecordingLimit.reserveBytes) + 800_000_000
+        let limit = RecordingLimit.untilStorageRunsOut
+        #expect(limit.reasonToStop(elapsed: 60 * 60 * 20, byteCount: written, availableBytes: available) == nil)
+        #expect(limit.byteCeiling(writtenBytes: written, availableBytes: available) == 1_700_000_000)
+        let fraction = limit.fraction(elapsed: 0, byteCount: written, availableBytes: available)
+        #expect(abs(fraction - 900.0 / 1_700.0) < 0.0001)
     }
 
     @Test("How full a session is never leaves nought to one")

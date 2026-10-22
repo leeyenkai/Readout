@@ -8,6 +8,109 @@ requirement IDs in [`docs/SPEC.md`](docs/SPEC.md).
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-10-23
+
+**Black by default, a phone you can see turn, and the defects a real iPhone would have found.**
+Readout now opens in true black with a blue accent, moves the way an instrument should, and
+looks the same from one screen to the next. A new Attitude tool draws the phone in 3D, turning
+as the real one does. And a correctness audit turned up a set of defects that only a physical
+iPhone would have shown — a first journey recording that quietly dropped its location, a
+background recording that left the microphone running, GPS fixes thrown away. Built and tested
+in the Simulator; the on-device pass that gates v1.0 is still outstanding
+([`docs/RELEASE.md`](docs/RELEASE.md) §3).
+
+### Added
+
+- **Attitude: your phone in 3D.** A new tool draws a lit, three-dimensional phone that turns
+  as yours does, from Core Motion's attitude, with its x, y and z axes in the colours every
+  chart uses. Give the phone a push and the model sways on a spring and settles back, with an
+  arrow showing the push. It deliberately does not claim to track the phone through space:
+  working position out from an accelerometer turns a tiny error into metres of imaginary travel
+  within seconds, and the explainer says so (P-2). Drag to look at it from another side; Hold
+  freezes it, Recentre turns it to face the way you are holding the phone. The Orientation
+  reading links to it. Built with RealityKit from shapes rather than a model file, so there is
+  no asset to ship and no particular phone being copied (R-86).
+- **The interface moves.** Tiles, tools and recordings zoom open from where they were tapped;
+  the grid settles in as the app opens; slow readings roll their digits; states cross-fade
+  rather than snap; the welcome screen draws the app's own mark on; a saved recording's route
+  draws itself; a recording ends with a "Recording saved" confirmation. Every one of them stands
+  down under Reduce Motion (R-50).
+- **Instruments that look the part.** The spirit level is a lit glass vial with a real bubble
+  that pulses as it reaches level and morphs between the flat and edge vials; the compass card
+  keeps its lettering upright and marks a locked bearing with an arc; the sound meter gains a
+  level bar with a peak-hold tick and a symbol that fills with the level; the light meter shows
+  the spot it is metering and flips between cameras (R-32–R-35, R-48).
+- **Hold on the sound meter**, like the level and the light meter (R-34).
+- **The level's zero is kept**, per mode and per edge, rather than lost when you leave (R-32).
+
+### Changed
+
+- **True black by default.** The Dark theme — true black, kind to an OLED screen, with iOS's
+  own dark-mode blue — is the default, whatever the phone's own appearance. System is still a
+  choice, and anybody who picked it keeps it. The launch screen is black to match (R-77).
+- **One design language.** Every card, header, statistic, badge and control row is built from
+  the same few pieces, so a card on one screen is the same card on the next; instrument switches
+  that showed their state as a button title ("Fast", "True north", "Rear camera") are segmented
+  controls; "Reset" means the same thing everywhere; Form rows on the tinted themes take the
+  theme's colour instead of grey slabs (R-46).
+- **The compass needs no permission.** Only true north needs Location, and the compass asks for
+  it there, carrying on against magnetic north until it is allowed (SPEC §3, reading 5).
+- **The Record button opens a running recording** instead of sitting disabled with nothing to
+  say why, and the Recordings tab says when your first recording is running (R-29, R-79).
+- **Settings that change what a recording means are fixed while it runs**: Include gravity,
+  true north, the sound response and both calibrations (R-30, R-45).
+- Each tile now follows only its own reading, so a new sample redraws one tile rather than the
+  whole grid; the live chart's scale settles instead of jumping with every new extreme; the
+  compass, level and calibration sheets cannot take a second lease on reappearing (R-25, R-64,
+  R-65).
+- Copy: "recording" throughout rather than "session", sentence case, shorter Settings footers,
+  and an About section that describes the app rather than calling it a hobby project.
+
+### Fixed
+
+- **A first journey recording silently dropped its location.** Core Location's permission
+  request returns before the prompt is answered, so Coordinates was left out, the recording was
+  judged foreground-only, and locking the phone ended it. The request is now awaited properly —
+  which also fixes allowing location from a reading's own screen starting nothing (R-38, R-54,
+  R-82).
+- **A recording carrying on in the background left the open screen's sensors running — the
+  microphone included.** Only the readings the recording logs keep running now (R-58, R-64,
+  R-83).
+- **Batched location fixes were thrown away**, leaving gaps in a journey's CSV and route; and
+  **replayed fixes were written again** each time another screen took a lease (R-45, R-76).
+- **"Until storage runs out" stopped at about half** the free space, counting what it had
+  written twice (R-80).
+- **Partly refused permissions were dropped without a word**; New Recording now asks before
+  starting without them (R-38).
+- **Angles were averaged as plain numbers**: a heading either side of north averaged to south.
+  Heading, course, yaw and roll are now summarised round the circle (R-26, R-43).
+- **No course or speed was recorded as 0** — due north, standing still — rather than as no
+  value (R-45).
+- **The spirit level's bubble sank on one axis and rose on the other**, on a real phone; standing
+  the phone on its long edge read ±90°; and zeroing on an edge shifted the flat reading (R-32).
+- **The compass dial spun the long way round** when the heading crossed north (R-33).
+- **Device motion waited for ever without Location** on a phone that refused it, for want of a
+  true-north reference none of the motion readings need; and a later 10 Hz lease could slow a
+  50 Hz recording (R-39, R-63).
+- **The sound level started about 20 dB low** after every start, and the meter restarted the
+  microphone on its own route changes; **camera interruptions** left a stale lux figure on screen
+  (R-34, R-35, R-66).
+- **"Since you opened this" reached back to launch** (R-26).
+- **Leaving the Sound or Light meter by switching tab could start the microphone or camera
+  again** behind you, as giving the lease back retriggered the meter's own activation; and
+  leaving the Light meter mid-recording switched the camera the recording was logging (R-64,
+  R-67).
+- A recovered recording could be lost if saving it failed; the first recording skipped its
+  free-space check; a recording with no samples vanished silently; deleting a recording from
+  its own screen could read a deleted object; a blank rename was accepted and ignored.
+- Apple Maps could be switched on from Settings without the dialog the route panel shows (R-81).
+- The Settings footer still said leaving the app always stops a recording (R-82).
+- Sheets came up in the asset catalogue's green rather than the theme's accent; the comparison
+  marker drew a black ring on the tinted themes; coordinates could print `59′ 60.0″`; a value
+  rounding to zero printed as "-0.00".
+
+## [0.5.0] — 2026-10-20
+
 **Logging a journey, and making the app yours.** What a recording is actually for — watching a
 session as it runs, and seeing where it went — plus the customisation Readout had none of, and
 the defects a full-source audit turned up. Built and tested in the Simulator; the on-device
@@ -421,7 +524,9 @@ not in this release.
   in the Simulator, where every value comes from the synthetic source and the permission gate
   is skipped.
 
-[Unreleased]: https://github.com/leeyenkai/Readout/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/leeyenkai/Readout/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/leeyenkai/Readout/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/leeyenkai/Readout/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/leeyenkai/Readout/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/leeyenkai/Readout/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/leeyenkai/Readout/compare/v0.1.0...v0.2.0

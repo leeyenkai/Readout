@@ -6,14 +6,17 @@ struct ReadingDetailView: View {
 
     @Environment(SensorHub.self) private var hub
     @Environment(AppSettings.self) private var settings
+    @Environment(RecordingService.self) private var recorder
     @State private var isRunning = false
     @State private var lease: SensorLease?
+    /// A permission granted while this sits in a hidden tab must not start the reading there.
+    @State private var isVisible = false
 
     private var descriptor: ReadingDescriptor { ReadingCatalog.descriptor(reading) }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
+        ReadoutScreen {
+            Group {
                 switch hub.availability(reading) {
                 case .needsPermission(let permission):
                     PermissionCard(permission: permission, isDenied: false) {
@@ -29,14 +32,12 @@ struct ReadingDetailView: View {
                 case .live, .ready:
                     content
                 }
-
-                ExplainerCard(descriptor: descriptor)
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 32)
+            .motion(.readoutSmooth, value: hub.availability(reading).isUsable)
+            .motion(.readoutSmooth, value: isRunning)
+
+            ExplainerCard(descriptor: descriptor)
         }
-        .scrollIndicators(.hidden)
-        .themedSurface()
         .navigationTitle(descriptor.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -44,8 +45,20 @@ struct ReadingDetailView: View {
                 RecordButton(readings: [reading])
             }
         }
-        .onAppear { activateIfAllowed() }
-        .onDisappear { deactivate() }
+        .onAppear {
+            isVisible = true
+            activateIfAllowed()
+        }
+        .onDisappear {
+            isVisible = false
+            deactivate()
+        }
+        // A permission granted here — or in the Settings app while this screen was open —
+        // starts the reading. Waiting for the card's own request was not enough: Core
+        // Location answers later, by which time nothing was left to start it.
+        .onChange(of: hub.availability(reading).isUsable) { _, isUsable in
+            if isUsable { activateIfAllowed() }
+        }
     }
 
     @ViewBuilder
@@ -54,9 +67,13 @@ struct ReadingDetailView: View {
             ProximityStartCard(descriptor: descriptor) {
                 isRunning = true
                 lease = hub.activate(reading, rate: .standard)
+                hub.resetStats(reading)
             }
         } else {
             LiveValuePanel(descriptor: descriptor, units: settings.displayUnits)
+                .transition(.blurReplace)
+
+            readingControls
 
             if descriptor.isChartable {
                 ReadingChartPanel(descriptor: descriptor, units: settings.displayUnits)
@@ -66,25 +83,67 @@ struct ReadingDetailView: View {
             if let comparisons = descriptor.comparisons {
                 ComparisonPanel(descriptor: descriptor, scale: comparisons, units: settings.displayUnits)
             }
+        }
+    }
 
-            if descriptor.id == .acceleration {
+    /// The few controls that belong to one reading, beside the value they change.
+    @ViewBuilder
+    private var readingControls: some View {
+        if descriptor.id == .orientation {
+            // Pitch, roll and yaw are three numbers; the Attitude tool is the same reading as
+            // a phone you can see turn (R-86).
+            NavigationLink(value: Tool.attitude) {
+                HStack(spacing: 12) {
+                    Image(systemName: Tool.attitude.symbol)
+                        .font(.title3)
+                        .foregroundStyle(.tint)
+                        .frame(width: 40, height: 40)
+                        .background(.tint.opacity(0.14), in: .circle)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("See it in 3D")
+                            .font(.subheadline.weight(.semibold))
+                        Text("A model of your phone that turns as it does")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .readoutCard(padding: 14)
+            }
+            .buttonStyle(.pressableCard)
+        }
+        if descriptor.id == .acceleration {
+            VStack(alignment: .leading, spacing: 6) {
                 Toggle("Include gravity", isOn: Binding(
                     get: { settings.accelerationIncludesGravity },
                     set: { settings.accelerationIncludesGravity = $0 }
                 ))
-                .font(.subheadline)
-                .padding(14)
-                .glassEffect(.regular, in: .rect(cornerRadius: 18))
+                .font(.subheadline.weight(.medium))
+                // A recording's acceleration column means one thing from start to finish
+                // (R-30, R-45).
+                .disabled(recorder.isRecording(.acceleration))
+                if recorder.isRecording(.acceleration) {
+                    Text("Fixed while a recording is logging acceleration.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
+            .readoutCard(padding: 14)
         }
     }
 
     private func activateIfAllowed() {
-        guard hub.availability(reading).isUsable else { return }
+        guard isVisible, hub.availability(reading).isUsable else { return }
         guard !descriptor.requiresExplicitStart else { return }
         guard lease == nil else { return }
         isRunning = true
         lease = hub.activate(reading, rate: .display)
+        // "Since you opened this" means since now. The history behind the chart is kept, but
+        // the statistics used to reach back to whenever the reading first ran.
+        hub.resetStats(reading)
     }
 
     private func deactivate() {
@@ -112,21 +171,21 @@ private struct LiveValuePanel: View {
                     .font(.headline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                    .frame(height: 60)
+                    .frame(minHeight: 60)
+                    .transition(.blurReplace)
             } else if let sample = hub.sample(descriptor.id) {
                 values(for: sample)
+                    .transition(.blurReplace)
                 footnote(for: sample)
             } else {
-                Text("Waiting for a reading…")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-                    .frame(height: 60)
+                WaitingLabel(text: "Waiting for a reading…")
+                    .transition(.blurReplace)
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
-        .padding(.horizontal, 16)
-        .glassEffect(.regular, in: .rect(cornerRadius: 24))
+        .motion(.readoutSnappy, value: hub.sample(descriptor.id) == nil)
+        .motion(.readoutSnappy, value: hub.stalledReason(descriptor.id))
+        .padding(.vertical, 6)
+        .readoutCard(padding: 18, alignment: .center)
         .contentShape(.rect)
         .onLongPressGesture {
             copy()
@@ -138,13 +197,8 @@ private struct LiveValuePanel: View {
         }
         .overlay(alignment: .topTrailing) {
             if didCopy {
-                Text("Copied")
-                    .font(.caption2.weight(.semibold))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .glassEffect(.regular, in: .capsule)
+                StatusBadge(text: "Copied", symbol: "doc.on.doc.fill")
                     .padding(10)
-                    .transition(.opacity)
             }
         }
         .accessibilityElement(children: .combine)
@@ -157,7 +211,8 @@ private struct LiveValuePanel: View {
         case .discrete:
             Text(sample.state ?? "—")
                 .readoutValue(size: 44)
-                .contentTransition(.numericText())
+                .contentTransition(.interpolate)
+                .motion(.readoutSnappy, value: sample.state)
         case .coordinates:
             Text(coordinateText(sample))
                 .font(.system(.title2, design: .rounded, weight: .semibold))
@@ -192,9 +247,10 @@ private struct LiveValuePanel: View {
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(channel.axis?.colour ?? .secondary)
             Text(formatted(value, channel: channel).text)
-                .font(.system(.title2, design: .rounded, weight: .semibold))
+                .readoutValue(size: 28)
                 .monospacedDigit()
-                .contentTransition(.numericText())
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
             Text(formatted(value, channel: channel).symbol)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -203,10 +259,13 @@ private struct LiveValuePanel: View {
 
     private func singleValue(channel: ReadingChannel, value: Double?) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text((descriptor.estimateNote == nil ? "" : "≈") + formatted(value, channel: channel).text)
-                .readoutValue(size: 46)
+            let text = (descriptor.estimateNote == nil ? "" : "≈") + formatted(value, channel: channel).text
+            Text(text)
+                .readoutValue(size: 48)
                 .monospacedDigit()
                 .contentTransition(.numericText())
+                // Slow readings roll their digits; fast ones hold still (see `updatesSlowly`).
+                .motion(.readoutSnappy, value: descriptor.updatesSlowly ? text : "")
                 .minimumScaleFactor(0.5)
                 .lineLimit(1)
             Text(formatted(value, channel: channel).symbol)
@@ -218,13 +277,21 @@ private struct LiveValuePanel: View {
     @ViewBuilder
     private func footnote(for sample: SensorSample) -> some View {
         VStack(spacing: 2) {
-            // Every number says where it came from (P-2).
+            // Every number says where it came from (P-2), and an estimate says so whatever
+            // the provider's own note adds — the two used to replace each other.
             Text(descriptor.source)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-            if let note = sample.note ?? descriptor.estimateNote {
-                Text(note)
-                    .font(.caption2)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            let notes = [sample.note, descriptor.estimateNote]
+                .compactMap { $0 }
+                .reduce(into: [String]()) { notes, note in
+                    if !notes.contains(where: { $0.localizedCaseInsensitiveContains(note) || note.localizedCaseInsensitiveContains($0) }) {
+                        notes.append(note)
+                    }
+                }
+            if !notes.isEmpty {
+                Text(notes.joined(separator: " · "))
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
@@ -262,7 +329,10 @@ private struct LiveValuePanel: View {
             .joined(separator: "  ")
         }
         UIPasteboard.general.string = text
-        didCopy = true
-        withAnimation(.easeOut(duration: 0.3).delay(1.2)) { didCopy = false }
+        withReadoutAnimation { didCopy = true }
+        Task {
+            try? await Task.sleep(for: .seconds(1.4))
+            withReadoutAnimation { didCopy = false }
+        }
     }
 }

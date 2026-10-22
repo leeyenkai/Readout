@@ -13,6 +13,8 @@ struct SampleRateGate: Sendable {
     let interval: TimeInterval
 
     private var due: Date?
+    /// The last sample kept, so one that is not newer is never kept twice.
+    private var lastKept: Date?
 
     init(interval: TimeInterval) {
         self.interval = max(0, interval)
@@ -29,10 +31,20 @@ struct SampleRateGate: Sendable {
 
     /// Whether a sample arriving at `time` belongs in the recording. Mutating, because
     /// keeping one moves the grid on.
+    ///
+    /// Time has to move forwards whatever the rate. Core Location hands a newly opened view
+    /// the last fix it has, and the hub opens a provider again every time another screen takes
+    /// a lease — so without this, moving between tabs mid-recording wrote the same fix into the
+    /// CSV again with the same timestamp each time.
     mutating func accepts(_ time: Date) -> Bool {
-        guard interval > 0 else { return true }
+        if let lastKept, time <= lastKept { return false }
+        guard interval > 0 else {
+            lastKept = time
+            return true
+        }
         guard let due else {
             self.due = time.addingTimeInterval(interval)
+            lastKept = time
             return true
         }
         // A sensor running at exactly the requested rate still jitters by a millisecond or
@@ -46,6 +58,7 @@ struct SampleRateGate: Sendable {
         self.due = lateness > interval
             ? time.addingTimeInterval(interval)
             : due.addingTimeInterval(interval)
+        lastKept = time
         return true
     }
 }

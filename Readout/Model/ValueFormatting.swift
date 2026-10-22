@@ -24,6 +24,10 @@ struct ValueFormatting {
     /// Fixed-digit decimal with grouping, so live values keep a stable width (R-47).
     static func decimal(_ value: Double, digits: Int) -> String {
         guard value.isFinite else { return "—" }
+        // A value that rounds to nothing is shown as nothing, not "-0.00": the sign of a
+        // reading too small to show says nothing true about it.
+        let scale = pow(10, Double(max(digits, 0)))
+        let value = (value * scale).rounded() == 0 ? 0 : value
         return value.formatted(
             .number
                 .precision(.fractionLength(digits))
@@ -70,11 +74,12 @@ struct ValueFormatting {
         // components are NaN. Int(_: Double) traps on NaN rather than clamping, so the guard
         // has to come before the conversion below.
         guard value.isFinite else { return "—" }
-        let magnitude = abs(value)
-        let degrees = Int(magnitude)
-        let minutesValue = (magnitude - Double(degrees)) * 60
-        let minutes = Int(minutesValue)
-        let seconds = (minutesValue - Double(minutes)) * 60
+        // Worked in tenths of a second of arc, rounded once, and only then split up: rounding
+        // the seconds last printed 59.96″ as "60.0″" beside a minute that never carried.
+        let tenths = Int((abs(value) * 36_000).rounded())
+        let degrees = tenths / 36_000
+        let minutes = (tenths % 36_000) / 600
+        let seconds = Double(tenths % 600) / 10
         return "\(degrees)° \(minutes)′ \(decimal(seconds, digits: 1))″ \(value < 0 ? negative : positive)"
     }
 

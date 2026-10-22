@@ -1,6 +1,6 @@
 # Readout — Specification
 
-**Status:** Draft 5 (living document), reconciled against v0.5.0 · **Target:** v1.0 · **Last updated:** 2026-10-20
+**Status:** Draft 6 (living document), reconciled against v0.6.0 · **Target:** v1.0 · **Last updated:** 2026-10-23
 
 Source of truth for what Readout is and is not. Derived from *Readout — App Spec (Draft 1)*
 (Claude Doc, 2026-10-18). This file supersedes that doc; changes land here first.
@@ -16,8 +16,8 @@ the milestone table in [§12](#12-milestones).
 Readout is a free, lightweight iPhone app that turns the phone's built-in sensors into clear,
 live readings for curious everyday users. It is shared as source and built from Xcode; there is
 no plan to publish it on the App Store. It explains what each sensor measures, compares
-readings to everyday references, and adds four simple instruments: spirit level, compass,
-sound meter and light meter.
+readings to everyday references, and adds five instruments: a 3D view of the phone's attitude,
+spirit level, compass, sound meter and light meter.
 
 It is a hobby project with no monetisation and no distribution: no ads, no in-app purchases,
 no account, and nothing to sign up to.
@@ -35,8 +35,8 @@ no account, and nothing to sign up to.
 
 ## 2. Scope for v1
 
-Version 1 is an iPhone-only app covering four sensor groups, four instrument tools and
-foreground recording with CSV export.
+Version 1 is an iPhone-only app covering four sensor groups, five instrument tools and
+recording with CSV export.
 
 ### 2.1 In scope
 
@@ -46,11 +46,11 @@ foreground recording with CSV export.
 | R-2 | Live readings for Motion, Environment, Location, and Device & activity | Done |
 | R-3 | Light from a camera-based light meter; device thermal state as the only heat-related reading | Done |
 | R-4 | A detail view per reading: live chart, min/max/average, explainer and everyday comparisons | Done |
-| R-5 | Instrument tools: spirit level, compass, sound meter, light meter | Done |
+| R-5 | Instrument tools: attitude in 3D, spirit level, compass, sound meter, light meter | Done — the attitude tool was added in v0.6.0 (R-86) |
 | R-6 | Foreground recording of chosen sensors, exported as CSV through the share sheet | Done (v0.2.0) |
 | R-76 | A recorded session's route, drawn from its own fixes without a map server, with Apple Maps behind an opt-in | Done (v0.5.0) |
 | R-79 | A running session can be watched: every reading it is logging, live, with the route building up | Done (v0.5.0) |
-| R-77 | Themes: the colour behind the readings and the accent on top, chosen by the user | Done (v0.5.0) |
+| R-77 | Themes: the colour behind the readings and the accent on top, chosen by the user | Done (v0.5.0); true black is the default from v0.6.0 |
 | R-78 | An interface size, on top of the phone's own text size | Done (v0.5.0) |
 | R-80 | The session limit is the user's to raise, for a journey longer than two hours | Done (v0.5.0) |
 | R-82 | A recording that includes the user's position carries on when Readout is no longer in front | Partial — the session is no longer ended by backgrounding, and that is verified; whether it keeps *sampling* throughout needs a device (§11.4) |
@@ -166,7 +166,7 @@ recording with that reading already selected.
 | --- | --- | --- |
 | R-22 | Edit mode (long-press or the Edit button) reorders, hides and restores tiles; the layout is saved on the device. | Done — long-press or Edit; drag to reorder, with VoiceOver move actions since VoiceOver cannot drag, and a Reset order button |
 | R-23 | Settings opens as a sheet from the Readings toolbar: units, appearance, recording, haptics, sound calibration offset, About and Privacy. | Done — calibration can be nudged by hand or worked out against a reference meter (R-75), About can bring the first-run explainer back, and Appearance holds the theme and interface size (R-77, R-78) |
-| R-77 | **Themes.** A theme sets the appearance Readout asks iOS for, the accent colour, and the colour behind the content. Seven ship: System (the default, which follows the phone's own Light and Dark setting), Dark, Elegant blue, Midnight blue, Sand, Graphite and Forest. | Done (v0.5.0) — a theme changes only those three things: the glass surfaces, tab bar and toolbars take their own tint from the backdrop, so nothing is redrawn by hand and the app stays inside Apple's design language (R-46) |
+| R-77 | **Themes.** A theme sets the appearance Readout asks iOS for, the accent colour, and the colour behind the content. Seven ship: Dark (the default — true black with iOS's dark-mode blue, whatever the phone is set to), System (which follows the phone's own Light and Dark setting), Elegant blue, Midnight blue, Sand, Graphite and Forest. | Done (v0.5.0) — a theme changes only those three things, plus the row colour of a Form on the tinted themes: the glass surfaces, tab bar and toolbars take their own tint from the backdrop, so nothing is redrawn by hand and the app stays inside Apple's design language (R-46). From v0.6.0 Dark is the default, a stored choice of System is kept, and the launch screen is black to match |
 | R-78 | **Interface size.** Six steps from Smaller to Largest, applied on top of the text size set in iOS Settings rather than replacing it. | Done (v0.5.0) — a step along the system's own type scale, so Form rows, navigation titles, tab bar labels, tiles and the large numeric readouts all grow together and stay laid out properly. From the default text size it spans Small to xxxLarge and stops short of the accessibility sizes; from an accessibility size it steps within them (R-52) |
 | R-73 | A one-time explainer on first launch: what Readout measures, that sound and light are estimates, and that nothing leaves the phone. Shown before the first permission prompt. | Done (v0.3.0) |
 
@@ -182,7 +182,7 @@ stats, and a short explainer with everyday comparisons.
 | ID | Requirement | Status |
 | --- | --- | --- |
 | R-24 | Live value in large type; three-axis readings show x, y and z side by side, each in its axis colour. | Done |
-| R-25 | Live line chart (Swift Charts) with a 10 s window by default, switchable to 1 min and 5 min; pause and resume; tap an axis to hide it. | Done — the window is fixed to the one chosen and labelled as a distance back from now, and the vertical scale fits the samples on screen rather than reaching down to zero |
+| R-25 | Live line chart (Swift Charts) with a 10 s window by default, switchable to 1 min and 5 min; pause and resume; tap an axis to hide it. | Done — the window is fixed to the one chosen and labelled as a distance back from now, and the vertical scale fits the samples on screen rather than reaching down to zero. From v0.6.0 the scale settles on round gridline values, widening at once and narrowing only once the data has sat inside a smaller band for two seconds, so it no longer jumps with every new extreme |
 | R-26 | Stats since the view opened: minimum, maximum, average, with a Reset button. | Done |
 | R-27 | Comparison scale: the current value placed on a bar of everyday references. | Done |
 | R-28 | Explainer card: what the sensor is, what it measures, how precise it is, and one "Try this" idea. | Done |
@@ -204,7 +204,7 @@ stats, and a short explainer with everyday comparisons.
 
 ## 7. Instrument tools
 
-The Tools tab holds four full-screen instruments, each built for one job and usable at a glance.
+The Tools tab holds five full-screen instruments, each built for one job and usable at a glance.
 
 | ID | Tool | What it shows | Source | Key interactions | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -212,6 +212,7 @@ The Tools tab holds four full-screen instruments, each built for one job and usa
 | R-33 | Compass | Rotating dial with heading, cardinal letters, coordinates and altitude below | Core Location heading and location | True or magnetic north toggle; lock a bearing to show drift from it; haptic tick at N, E, S, W; calibration prompt when accuracy is poor | Done |
 | R-34 | Sound meter | Current dB, peak and average, live history chart, comparison scale | Microphone level metering | Fast or slow response; Reset; warning colour at 85 dB and above; audio is never recorded, only levels | Done |
 | R-35 | Light meter | Approximate lux, live camera preview with a metering spot, comparison scale | Camera exposure data | Tap the preview to meter a spot; switch front or rear camera; Hold to freeze the reading | Done |
+| R-86 | Attitude | A lit 3D phone that turns as the real phone does, with its x, y and z axes in the fixed axis colours; pitch, roll and yaw; how hard it is being pushed | Core Motion device motion: the attitude quaternion and user acceleration | Recentre to face the way the phone is held; drag to look from another side; sways on a spring when pushed, never claiming a position; Hold; Reduce Motion follows without swaying | Done (v0.6.0) in the Simulator — RealityKit, built from shapes rather than a model file. Whether the model matches the phone in every pose, and how the sway feels, needs a device (R-87) |
 | R-36 | Each tool has the same Record button as the detail view, so a level or sound session can be logged without leaving the tool. | | | | Done |
 
 ---
@@ -295,9 +296,9 @@ and system components wherever they exist.
 | --- | --- | --- | --- |
 | R-46 | Surfaces | Glass tab bar and toolbars; home tiles as glass cards over the background; no custom chrome. | Done — a theme colours that background and nothing else (R-77). Liquid Glass takes its own tint from what is behind it, so one gradient re-colours every card, bar and toolbar without a single one of them being redrawn by hand |
 | R-47 | Type | SF Pro throughout; large readouts use monospaced digits so live numbers don't jitter as they change; numeric content transitions animate value changes. | Done |
-| R-48 | Icons | One SF Symbol per reading, with symbol effects where they add meaning (for example, the sound tile's symbol reacting to level). | Done |
-| R-49 | Colour | System colours with a single accent, which a theme may change; fixed axis colours across the app (x red, y green, z blue); full dark mode and Increase Contrast support. | Done — the axis colours stay fixed whatever the theme, because they are how three traces are told apart rather than decoration, and they carry dash patterns as well (R-52). Dark mode is unchanged for anyone who never opens Appearance: the default theme follows the phone (R-77) |
-| R-50 | Motion | Gentle, physical animation (bubble, compass dial); all of it reduced or removed under Reduce Motion. | Done |
+| R-48 | Icons | One SF Symbol per reading, with symbol effects where they add meaning (for example, the sound tile's symbol reacting to level). | Done — from v0.6.0 the sound tile's waveform ripples faster as the level rises and the meter's speaker fills with it; before then neither followed the level, so this row overstated what shipped |
+| R-49 | Colour | System colours with a single accent, which a theme may change; fixed axis colours across the app (x red, y green, z blue); full dark mode and Increase Contrast support. | Done — the axis colours stay fixed whatever the theme, because they are how three traces are told apart rather than decoration, and they carry dash patterns as well (R-52). From v0.6.0 the app opens in true black by default; anybody who chose System still follows the phone (R-77) |
+| R-50 | Motion | Gentle, physical animation (bubble, compass dial); all of it reduced or removed under Reduce Motion. | Done — from v0.6.0 one shared vocabulary of springs: zoom transitions from tile, tool or recording into its screen, the grid settling in at launch, slow readings rolling their digits, cross-fading state changes, the welcome mark and a saved route drawing themselves on, and a "Recording saved" confirmation. Every one stands down under Reduce Motion; the edge level used to ignore it |
 | R-51 | Haptics | Level reaching 0°, compass cardinal points, recording start and stop; one switch in Settings turns them off. | Done — recording haptics added in v0.2.0; not feelable in the Simulator |
 | R-52 | Accessibility | Dynamic Type on every screen, the large numeric readouts included; VoiceOver reads each value with its unit on request rather than announcing every change; charts expose audio graphs; tools work one-handed. | Done — Dynamic Type, VoiceOver labels, Reduce Motion, and `AXChartDescriptor` audio graphs on the live and session charts. The three axes also carry dash patterns, so they are not told apart by colour alone. From v0.5.0 the large readouts follow Dynamic Type too — they were fixed point sizes, so the one number a reading exists to show was the only thing on screen that did not grow with the text size — and the interface size moves along the same scale rather than magnifying the finished screen (R-78) |
 | R-53 | Language | English at launch; units and number formats follow the phone's region. | Done |
@@ -342,7 +343,7 @@ dependencies.
 
 | ID | Requirement | Status |
 | --- | --- | --- |
-| R-60 | SwiftUI with the Observation framework; Swift Charts for all charts; MapKit only for the optional route map (R-76, R-81). The offline route plot is a `Canvas`, so the default path pulls in no map framework at runtime. | Done |
+| R-60 | SwiftUI with the Observation framework; Swift Charts for all charts; MapKit only for the optional route map (R-76, R-81); RealityKit only for the Attitude tool (R-86). The offline route plot is a `Canvas`, so the default path pulls in no map framework at runtime. | Done |
 | R-61 | Core Motion, Core Location and AVFoundation for sensors; SwiftData for session metadata, with samples written to CSV files on disk. | Done |
 | R-62 | iOS 26 minimum, so Liquid Glass comes from the system rather than being imitated; this covers every iPhone that runs iOS 26. | Done |
 
@@ -372,6 +373,7 @@ Built with Xcode 27 / Swift 6.4 against the iOS 27 SDK; deployment target iOS 26
 | --- | --- | --- |
 | R-71 | Most sensors don't work in the Simulator, so the sensor service sits behind a protocol with a mock that replays synthetic data for previews and UI tests. | Done — from v0.4.0 **every** reading comes from the mock there, not only the ones a framework admits to lacking: Core Location reports itself available and then never produces a fix, which left the location group waiting for ever. The Simulator also skips the permission gate, since there is no real sensor to protect and no way to answer a Motion & Fitness prompt |
 | R-72 | Calibration offsets for sound and light need checking on real devices against a reference meter. | Open — needs hardware |
+| R-87 | The Attitude tool needs checking on a real iPhone: that the model matches the phone in every pose, upright included; that a push sways it the way the phone moved; and its frame rate and battery cost at 120 Hz. | Open — needs hardware. The Simulator proves the rendering, the recentring and the maths (all covered by tests); only a phone has a real attitude to compare against |
 | R-85 | Background recording needs checking on a real iPhone. | Open — needs hardware. What the Simulator **does** prove: a qualifying session is no longer ended by backgrounding (it ran 94 s across a background period and saved normally rather than interrupted), and setting `allowsBackgroundLocationUpdates` does not raise, so the background mode is correctly declared. What it **cannot** prove: that sampling continues throughout. The same run left 14 s and 46 s gaps in its CSVs, because the Simulator has no real fixes arriving and suspends the process anyway. On a device the fixes are what keep it scheduled — which is the whole mechanism, and exactly the part a build machine cannot exercise |
 
 ---
@@ -385,6 +387,7 @@ Built with Xcode 27 / Swift 6.4 against the iOS 27 SDK; deployment target iOS 26
 | **v0.3.0 — Release readiness** | App icon as an Icon Composer document; the defects a full-source audit turned up, including one that could delete every recording and one that could crash the Sound meter; drag-to-reorder (R-22), chart audio graphs (R-52), the calibration mechanism (R-10, R-66), first-run explainer (R-73); recording limits (Q-4) and crash recovery; privacy manifest (R-74), licence, CI and `docs/RELEASE.md` | Shipped — built and tested in the Simulator; **not yet verified on physical hardware** |
 | **v0.4.0 — Honest estimates & polish** | Guided calibration against a reference meter (R-75); charts scaled to their data with a labelled time axis (R-25, R-43); portrait only (R-1); tiles that grow with Dynamic Type (R-52); the empty-grid state (R-22); and the defects a lifecycle pass turned up — a permission granted in-app starting nothing (R-54), the sound reading hidden on a phone that has a microphone (R-7), a blocking location check at launch, the bubble leaving its circle (R-32), and the whole location group waiting for ever in the Simulator (R-71) | Shipped — built and tested in the Simulator; **not yet verified on physical hardware** |
 | **v0.5.0 — Logging a journey, and making it yours** | What a recording is for: a running session you can watch (R-79), the route a session logged (R-76), and a limit long enough for the journey (R-80). Background recording for a session that records the user's position, with the microphone and camera permanently excluded from it (R-82–R-84). Plus the customisation the app had none of — seven themes (R-77) and an interface size (R-78) — and the defects a full audit turned up: a location permission granted in-app that left every location reading gated, the compass tick landing halfway between north and east, comparisons claiming "about the same as" however far away, large readouts ignoring Dynamic Type, and the live chart copying its whole 3,000-sample history on every redraw | Shipped — built and tested in the Simulator; **not yet verified on physical hardware** |
+| **v0.6.0 — Polish, black by default, and the phone in 3D** | A production pass: true black by default (R-77), one design language across every screen (R-46), a shared animation vocabulary with zoom transitions and Reduce Motion throughout (R-50), the Attitude tool (R-86), and the defects a correctness audit turned up — most of them only visible on a real iPhone: a first journey recording dropping its location (R-54, R-82), a background recording leaving the microphone running (R-83), batched fixes dropped and replayed fixes duplicated (R-45), a storage limit stopping at half (R-80), angles averaged as plain numbers (R-26), the bubble sinking on one axis (R-32), the compass dial spinning through south (R-33), device motion waiting on a Location it does not need (R-63) | Shipped — built and tested in the Simulator; **not yet verified on physical hardware** |
 | **v1.0 — Verified on hardware** | What is left is what a build machine cannot do: on-device verification of every reading, the audio-interruption and 50 Hz checks, and the sound and light baselines measured against a reference meter. The checklist is [`docs/RELEASE.md`](RELEASE.md) §3. There is no plan to publish on the App Store, so nothing here waits on a submission | Planned |
 
 ---
@@ -408,4 +411,6 @@ provisional choice v0.1.0 ships with; none of them is settled.
 | Q-10 | Name check: is "Readout" available on the App Store, and what does the icon look like? | **Settled.** The icon shipped in v0.3.0 — a rising trace with a live point, the mark the tiles already draw, as an Icon Composer document so iOS renders all four appearances. The name check is moot: Readout is shared as source and run from Xcode, not published |
 | Q-12 | Recording in the background, so a journey survives the phone being pocketed? | **Settled in v0.5.0, within the limits iOS imposes.** A session that records the user's position carries on, because Core Location's background updates are the mechanism that allows it (R-82). A session without one cannot — there is no mechanism — and the app says so before it starts rather than pretending. The microphone and the camera are excluded by choice, not by limitation (R-83). Readout asks for When In Use, never Always (R-84) |
 | Q-13 | Should a theme be able to change the axis colours, or the caution colours? | **No, for now.** x red, y green, z blue is how three traces are told apart, not decoration, and orange at 85 dB is a warning. A theme colours the background and the accent (R-49, R-77) |
+| Q-14 | How should the phone be shown in 3D, and should it move with the phone through space? | **Settled in v0.6.0.** RealityKit, not SceneKit — SceneKit was soft-deprecated at WWDC25 and gets no new work — built from extruded shapes rather than a model file. It turns from Core Motion's attitude quaternion, since Euler yaw is undefined with the phone upright. It does **not** move through space: integrating acceleration twice drifts metres within seconds, so a push sways the model on a spring and it settles back, and the explainer says why (R-86, P-2) |
+| Q-15 | Should Readout follow the phone's appearance by default, or open dark? | **Settled in v0.6.0: dark.** True black with the blue accent is the default; System remains a choice and a stored choice of it is kept (R-77) |
 | Q-11 | Re-check the latest iOS SDK before building, in case Apple has opened up light or temperature data. | Checked 2026-10-18 against the iOS 27 SDK: still no ambient-light or temperature API |

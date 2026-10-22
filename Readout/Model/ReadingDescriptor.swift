@@ -84,13 +84,17 @@ struct ReadingChannel: Sendable, Hashable, Identifiable {
     let name: String
     let unit: ValueUnit
     let axis: Axis?
+    /// Set for an angle that wraps round the circle, so its statistics are worked out round
+    /// it rather than along a line.
+    let wrap: AngleWrap?
 
     var id: String { name }
 
-    init(_ name: String, _ unit: ValueUnit, axis: Axis? = nil) {
+    init(_ name: String, _ unit: ValueUnit, axis: Axis? = nil, wrap: AngleWrap? = nil) {
         self.name = name
         self.unit = unit
         self.axis = axis
+        self.wrap = wrap
     }
 }
 
@@ -182,7 +186,15 @@ struct ReadingDescriptor: Sendable, Identifiable {
 
     var isMultiAxis: Bool { channels.count > 1 && channels.allSatisfy { $0.axis != nil } }
 
+    /// Each channel's wrap, in channel order, for the statistics that summarise it.
+    var channelWraps: [AngleWrap?] { channels.map(\.wrap) }
+
     var isChartable: Bool { kind == .continuous }
+
+    /// Whether the value changes slowly enough for its digits to roll over as it changes:
+    /// the barometer, location, the pedometer, the device's own state. Motion arrives many
+    /// times a second, and sound and light are fast too; rolling those digits reads as noise.
+    var updatesSlowly: Bool { group != .motion && activation == .whileVisible }
 
     /// The one value a tile shows, per `tile` (R-17).
     func summaryValue(_ sample: SensorSample) -> Double? {
